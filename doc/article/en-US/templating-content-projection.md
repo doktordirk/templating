@@ -1,23 +1,14 @@
 ---
-{
-  "name": "Templating: Content Projection",
-  "culture": "en-US",
-  "description": "An overview of the Aurelia templating engine's custom element content projection functionality.",
-  "engines" : { "aurelia-doc" : "^1.0.0" },
-  "author": {
-    "name": "Ashley Grant",
-    "url": "http://www.ashleygrant.com"
-  },
-  "contributors": [],
-  "translators": [],
-  "keywords": ["JavaScript", "Templating", "Custom Elements", "Content Projection", "slot"]
-}
+name: "Templating: Content Projection"
+description: An overview of the Aurelia templating engine's custom element content projection functionality.
+author: Ashley Grant (http://www.ashleygrant.com)
 ---
-## [Introduction](aurelia-doc://section/1/version/1.0.0)
+## Introduction
 
 Most of the standard HTML elements allow for content inside them. Custom Elements would be of limited use if we couldn't put content inside them. Thus, we need a way to take this content and place it inside our custom element's template. The Shadow DOM spec provides the `slot` processing instruction for doing this. Let's explore the various strategies available for utilizing content projection.
 
-## [Basic Content Projection](aurelia-doc://section/2/version/1.0.0)
+## Basic Content Projection
+
 Let's create a name tag custom element. When the `name-tag` element is used, it will take the name it will display as content in the element.
 
 <code-listing heading="Name Tag Element Usage">
@@ -45,7 +36,7 @@ Aurelia custom elements utilize the "slot based" content projection standard fro
 
 Aurelia will project the element's content in to the template where the `<slot></slot>` element is located.
 
-## [Named Slots](aurelia-doc://section/3/version/1.0.0)
+## Named Slots
 
 The scenario above uses a "default" slot because the `slot` has no `name` attribute. In Shadow DOM, you can create as many slots as you want, provided that you give them different names. Then, the content that gets projected into the Shadow DOM must specify which slot it wants using a `slot` attribute. If it indicates no particular slot (or is plain text) it will get projected into the default slot. Here's an example of named slots:
 
@@ -101,7 +92,7 @@ The scenario above uses a "default" slot because the `slot` has no `name` attrib
   </source-code>
 </code-listing>
 
-## [Fallback Slots](aurelia-doc://section/4/version/1.0.0)
+## Fallback Slots
 
 A nice feature of slots is that they can have fallback content. If nothing gets projected into the slot, the slot will render its fallback content:
 
@@ -305,12 +296,24 @@ That was fun! But we can go deeper. What about slots, that target other slots wi
   </source-code>
 </code-listing>
 
-## [Slot Implementation Limitations](aurelia-doc://section/5/version/1.0.0)
+## Slot Implementation Limitations
 
-At the time this document is written, no browser supports Shadow DOM v1 slots. Thus, Aurelia has implemented the specification. We haven't attempted to create a "generic" polyfill designed to be used outside of Aurelia. Our slots implementation is baked into Aurelia's templating compiler and renderer so that it can provide maximum performance and meet the needs of our community. We haven't attempted to implement all the APIs of the spec, but rather to emulate the declarative rendering capabilities of slots. By programming against Aurelia in this way, you don't need to worry about whether or not your browser does or does not support slots natively. Aurelia will take care of it for you.
+At the time this document is written, no browser supports [Shadow DOM](https://w3c.github.io/webcomponents/spec/shadow/) v1 slots. Thus, Aurelia has implemented the specification. We haven't attempted to create a "generic" polyfill designed to be used outside of Aurelia. Our slots implementation is baked into Aurelia's templating compiler and renderer so that it can provide maximum performance and meet the needs of our community. We haven't attempted to implement all the APIs of the spec, but rather to emulate the declarative rendering capabilities of slots. By programming against Aurelia in this way, you don't need to worry about whether or not your browser does or does not support slots natively. Aurelia will take care of it for you.
 
 Known limitations of our implementation are as follows:
 
 * You cannot data-bind the slot's `name` attribute.
 * You cannot data-bind the `slot` attribute.
 * You cannot dynamically generate `slot` elements inside a component's view.
+
+For example, the following would fail because the slot cannot be dynamic, however `show.bind` would be okay as the slot is generated but show hides it using css. Using template parts would be another alternative or applying `if.bind` to the content inside the slot.
+
+<code-listing heading="Invalid Slot Usage">
+  <source-code lang="HTML">
+    <template>
+      <div if.bind="something">
+        <slot></slot>
+      </div>
+    </template>
+  </source-code>
+</code-listing>

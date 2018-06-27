@@ -10,22 +10,23 @@ import {
   FEATURE
 } from 'aurelia-pal';
 import {
-  relativeToFile
-} from 'aurelia-path';
-import {
   TemplateRegistryEntry,
   Loader
 } from 'aurelia-loader';
 import {
-  inject,
+  relativeToFile
+} from 'aurelia-path';
+import {
   Container,
-  resolver
+  resolver,
+  inject
 } from 'aurelia-dependency-injection';
 import {
-  Binding,
-  createOverrideContext,
   ValueConverterResource,
   BindingBehaviorResource,
+  camelCase,
+  Binding,
+  createOverrideContext,
   subscriberCollection,
   bindingMode,
   ObserverLocator,
@@ -37,6 +38,7 @@ import {
 export declare interface EventHandler {
   eventName: string;
   bubbles: boolean;
+  capture: boolean;
   dispose: Function;
   handler: Function;
 }
@@ -71,6 +73,10 @@ export declare interface ViewStrategy {
     * @return A promise for the view factory that is produced by this strategy.
     */
   loadViewFactory(viewEngine: ViewEngine, compileInstruction: ViewCompileInstruction, loadContext?: ResourceLoadContext, target?: any): Promise<ViewFactory>;
+}
+export declare interface IStaticViewConfig {
+  template: string | HTMLTemplateElement;
+  dependencies?: Function[] | (() => Array<Function | Promise<Function | Record<string, Function>>>);
 }
 
 /**
@@ -118,6 +124,98 @@ export declare interface ViewEngineHooks {
     * @param view The view that was created by the factory.
     */
   beforeUnbind?: (view: View) => void;
+}
+export declare interface IBindablePropertyConfig {
+  
+  /**
+    * The name of the property.
+    */
+  name?: string;
+  attribute?: string;
+  
+  /**
+     * The default binding mode of the property. If given string, will use to lookup
+     */
+  defaultBindingMode?: bindingMode | 'oneTime' | 'oneWay' | 'twoWay' | 'fromView' | 'toView';
+  
+  /**
+     * The name of a view model method to invoke when the property is updated.
+     */
+  changeHandler?: string;
+  
+  /**
+     * A default value for the property.
+     */
+  defaultValue?: any;
+  
+  /**
+     * Designates the property as the default bindable property among all the other bindable properties when used in a custom attribute with multiple bindable properties.
+     */
+  primaryProperty?: boolean;
+  
+  // For compatibility and future extension
+  [key: string]: any;
+}
+export declare interface IStaticResourceConfig {
+  
+  /**
+     * Resource type of this class, omit equals to custom element
+     */
+  type?: 'element' | 'attribute' | 'valueConverter' | 'bindingBehavior' | 'viewEngineHooks';
+  
+  /**
+     * Name of this resource. Reccommended to explicitly set to works better with minifier
+     */
+  name?: string;
+  
+  /**
+     * Used to tell if a custom attribute is a template controller
+     */
+  templateController?: boolean;
+  
+  /**
+     * Used to set default binding mode of default custom attribute view model "value" property
+     */
+  defaultBindingMode?: bindingMode | 'oneTime' | 'oneWay' | 'twoWay' | 'fromView' | 'toView';
+  
+  /**
+     * Flags a custom attribute has dynamic options
+     */
+  hasDynamicOptions?: boolean;
+  
+  /**
+     * Flag if this custom element uses native shadow dom instead of emulation
+     */
+  usesShadowDOM?: boolean;
+  
+  /**
+     * Options that will be used if the element is flagged with usesShadowDOM
+     */
+  shadowDOMOptions?: ShadowRootInit;
+  
+  /**
+     * Flag a custom element as containerless. Which will remove their render target
+     */
+  containerless?: boolean;
+  
+  /**
+     * Custom processing of the attributes on an element before the framework inspects them.
+     */
+  processAttributes?: (viewCompiler: ViewCompiler, resources: ViewResources, node: Element, attributes: NamedNodeMap, elementInstruction: BehaviorInstruction) => void;
+  
+  /**
+     * Enables custom processing of the content that is places inside the custom element by its consumer.
+     * Pass a boolean to direct the template compiler to not process
+     * the content placed inside this element. Alternatively, pass a function which
+     * can provide custom processing of the content. This function should then return
+     * a boolean indicating whether the compiler should also process the content.
+     */
+  processContent?: (viewCompiler: ViewCompiler, resources: ViewResources, node: Element, instruction: BehaviorInstruction) => boolean;
+  
+  /**
+     * List of bindable properties of this custom element / custom attribute, by name or full config object
+     */
+  bindables?: string | IBindablePropertyConfig[];
 }
 
 /* eslint no-unused-vars: 0, no-constant-condition: 0 */
@@ -301,6 +399,16 @@ export declare interface CompositionContext {
     * Should the composition system skip calling the "activate" hook on the view model.
     */
   skipActivation?: boolean;
+  
+  /**
+    * The element that will parent the dynamic component.
+    * It will be registered in the child container of this composition.
+    */
+  host?: Element;
+}
+export declare interface IStaticViewStrategyConfig {
+  template: string | HTMLTemplateElement;
+  dependencies?: Function[] | {};
 }
 
 /**
@@ -475,7 +583,7 @@ export declare function viewEngineHooks(target?: any): any;
  * @param element
  */
 export declare class ElementEvents {
-  constructor(element: Element);
+  constructor(element: EventTarget);
   
   /**
      * Dispatches an Event on the context element.
@@ -488,21 +596,15 @@ export declare class ElementEvents {
   
   /**
      * Adds and Event Listener on the context element.
-     * @param eventName
-     * @param handler
-     * @param bubbles
      * @return Returns the eventHandler containing a dispose method
      */
-  subscribe(eventName: string, handler: Function, bubbles?: boolean): EventHandler;
+  subscribe(eventName: string, handler: Function, captureOrOptions?: boolean): EventHandler;
   
   /**
      * Adds an Event Listener on the context element, that will be disposed on the first trigger.
-     * @param eventName
-     * @param handler
-     * @param bubbles
      * @return Returns the eventHandler containing a dispose method
      */
-  subscribeOnce(eventName: String, handler: Function, bubbles?: Boolean): EventHandler;
+  subscribeOnce(eventName: string, handler: Function, captureOrOptions?: boolean): EventHandler;
   
   /**
      * Removes all events that are listening to the specified eventName.
@@ -814,7 +916,7 @@ export declare class TemplateRegistryViewStrategy {
 }
 
 /**
-* A view strategy that allows the component authore to inline the html for the view.
+* A view strategy that allows the component author to inline the html for the view.
 */
 export declare class InlineViewStrategy {
   
@@ -835,6 +937,27 @@ export declare class InlineViewStrategy {
     * @return A promise for the view factory that is produced by this strategy.
     */
   loadViewFactory(viewEngine: ViewEngine, compileInstruction: ViewCompileInstruction, loadContext?: ResourceLoadContext, target?: any): Promise<ViewFactory>;
+}
+export declare class StaticViewStrategy {
+  
+  /**@internal */
+  template: string | HTMLTemplateElement;
+  
+  /**@internal */
+  dependencies: Function[] | (() => Array<Function | Promise<Function | Record<string, Function>>>);
+  factoryIsReady: boolean;
+  factory: ViewFactory;
+  constructor(config: string | HTMLTemplateElement | IStaticViewConfig);
+  
+  /**
+    * Loads a view factory.
+    * @param viewEngine The view engine to use during the load process.
+    * @param compileInstruction Additional instructions to use during compilation of the view.
+    * @param loadContext The loading context used for loading all resources and dependencies.
+    * @param target A class from which to extract metadata of additional resources to load.
+    * @return A promise for the view factory that is produced by this strategy.
+    */
+  loadViewFactory(viewEngine: ViewEngine, compileInstruction: ViewCompileInstruction, loadContext: ResourceLoadContext, target: any): Promise<ViewFactory>;
 }
 
 /**
@@ -905,11 +1028,10 @@ export declare class BindingLanguage {
   inspectTextContent(resources: ViewResources, value: string): Object;
 }
 export declare class SlotCustomAttribute {
+  static inject(): any;
   constructor(element?: any);
   valueChanged(newValue?: any, oldValue?: any): any;
 }
-
-//console.log('au-slot', newValue);
 export declare class PassThroughSlot {
   constructor(anchor?: any, name?: any, destinationName?: any, fallbackFactory?: any);
   needsFallbackRendering: any;
@@ -948,14 +1070,20 @@ export declare class ShadowDOM {
   static undistributeAll(slots?: any, projectionSource?: any): any;
   static distributeNodes(view?: any, nodes?: any, slots?: any, projectionSource?: any, index?: any, destinationOverride?: any): any;
 }
+export declare function validateBehaviorName(name: string, type: string): any;
 
 /**
-* Represents a collection of resources used during the compilation of a view.
-*/
-/**
-* Represents a collection of resources used during the compilation of a view.
-*/
+ * Represents a collection of resources used during the compilation of a view.
+ * Will optinally add information to an existing HtmlBehaviorResource if given
+ */
 export declare class ViewResources {
+  
+  /**
+     * Checks whether the provided class contains any resource conventions
+     * @param target Target class to extract metadata based on convention
+     * @param existing If supplied, all custom element / attribute metadata extracted from convention will be apply to this instance
+     */
+  static convention(target: Function, existing?: HtmlBehaviorResource): HtmlBehaviorResource | ValueConverterResource | BindingBehaviorResource | ViewEngineHooksResource;
   
   /**
     * A custom binding language used in the view.
@@ -1072,6 +1200,18 @@ export declare class ViewResources {
     * @return The value.
     */
   getValue(name: string): any;
+  
+  /**
+     * @internal
+     * Not supported for public use. Can be changed without warning.
+     *
+     * Auto register a resources based on its metadata or convention
+     * Will fallback to custom element if no metadata found and all conventions fail
+     * @param {Container} container
+     * @param {Function} impl
+     * @returns {HtmlBehaviorResource | ValueConverterResource | BindingBehaviorResource | ViewEngineHooksResource}
+     */
+  autoRegister(container?: any, impl?: any): any;
 }
 export declare class View {
   
@@ -1099,6 +1239,11 @@ export declare class View {
     * The override context which contains properties capable of overriding those found on the binding context.
     */
   overrideContext: Object;
+  
+  /**
+    * The Controller instance that owns this View.
+    */
+  controller: Controller;
   
   /**
     * Creates a View instance.
@@ -1236,7 +1381,7 @@ export declare class ViewSlot {
     * @param skipAnimation Should the removal animation be skipped?
     * @return May return a promise if the view removal triggered an animation.
     */
-  remove(view: View, returnToCache?: boolean, skipAnimation?: boolean): void | Promise<View>;
+  remove(view: View, returnToCache?: boolean, skipAnimation?: boolean): View | Promise<View>;
   
   /**
     * Removes many views from the slot.
@@ -1245,7 +1390,7 @@ export declare class ViewSlot {
     * @param skipAnimation Should the removal animation be skipped?
     * @return May return a promise if the view removal triggered an animation.
     */
-  removeMany(viewsToRemove: View[], returnToCache?: boolean, skipAnimation?: boolean): void | Promise<View>;
+  removeMany(viewsToRemove: View[], returnToCache?: boolean, skipAnimation?: boolean): void | Promise<void>;
   
   /**
     * Removes a view an a specified index from the slot.
@@ -1289,7 +1434,6 @@ export declare class BoundViewFactory {
     */
   constructor(parentContainer: Container, viewFactory: ViewFactory, partReplacements?: Object);
   
-  //This is referenced internally in the controller's bind method.
   /**
     * Creates a view or returns one from the internal cache, if available.
     * @return The created view.
@@ -1781,6 +1925,7 @@ export declare function children(selectorOrConfig: string | Object): any;
 * Creates a behavior property that references an immediate content child element that matches the provided selector.
 */
 export declare function child(selectorOrConfig: string | Object): any;
+export declare const SwapStrategies: any;
 
 /**
 * Used to dynamically compose components.
@@ -1850,9 +1995,9 @@ export declare class ElementConfigResource {
 
 /**
 * Decorator: Specifies a resource instance that describes the decorated class.
-* @param instance The resource instance.
+* @param instanceOrConfig The resource instance.
 */
-export declare function resource(instance: Object): any;
+export declare function resource(instanceOrConfig: string | object): any;
 
 /**
 * Decorator: Specifies a custom HtmlBehaviorResource instance or an object that overrides various implementation details of the default HtmlBehaviorResource.
@@ -1869,9 +2014,10 @@ export declare function customElement(name: string): any;
 /**
 * Decorator: Indicates that the decorated class is a custom attribute.
 * @param name The name of the custom attribute.
-* @param defaultBindingMode The default binding mode to use when the attribute is bound wtih .bind.
+* @param defaultBindingMode The default binding mode to use when the attribute is bound with .bind.
+* @param aliases The array of aliases to associate to the custom attribute.
 */
-export declare function customAttribute(name: string, defaultBindingMode?: number): any;
+export declare function customAttribute(name: string, defaultBindingMode?: number, aliases?: string[]): any;
 
 /**
 * Decorator: Applied to custom attributes. Indicates that whatever element the
@@ -1886,7 +2032,6 @@ export declare function templateController(target?: any): any;
 */
 export declare function bindable(nameOrConfigOrTarget?: string | Object, key?: any, descriptor?: any): any;
 
-//placed on a class
 /**
 * Decorator: Specifies that the decorated custom attribute has options that
 * are dynamic, based on their presence in HTML and not statically known.
@@ -1948,6 +2093,14 @@ export declare function inlineView(markup: string, dependencies?: Array<string |
 export declare function noView(targetOrDependencies?: Function | Array<any>, dependencyBaseUrl?: string): any;
 
 /**
+ * Decorator: Indicates that the element use static view
+ */
+/**
+ * Decorator: Indicates that the element use static view
+ */
+export declare function view(templateOrConfig: string | HTMLTemplateElement | IStaticViewStrategyConfig): any;
+
+/**
 * Decorator: Indicates that the decorated class provides element configuration
 * to the EventManager for one or more Web Components.
 */
@@ -1956,9 +2109,9 @@ export declare function elementConfig(target?: any): any;
 /**
 * Decorator: Provides the ability to add resources to the related View
 * Same as: <require from="..."></require>
-* @param resource Either: strings with moduleIds, Objects with 'src' and optionally 'as' properties or one of the classes of the module to be included.
+* @param resources Either: strings with moduleIds, Objects with 'src' and optionally 'as' properties or one of the classes of the module to be included.
 */
-export declare function viewResources(...resource: any[]): any;
+export declare function viewResources(...resources: any[]): any;
 
 /**
 * A facade of the templating engine capabilties which provides a more user friendly API for common use cases.

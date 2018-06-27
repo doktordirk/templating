@@ -209,7 +209,7 @@ export class ViewSlot {
   * @param skipAnimation Should the removal animation be skipped?
   * @return May return a promise if the view removal triggered an animation.
   */
-  remove(view: View, returnToCache?: boolean, skipAnimation?: boolean): void | Promise<View> {
+  remove(view: View, returnToCache?: boolean, skipAnimation?: boolean): View | Promise<View> {
     return this.removeAt(this.children.indexOf(view), returnToCache, skipAnimation);
   }
 
@@ -220,7 +220,7 @@ export class ViewSlot {
   * @param skipAnimation Should the removal animation be skipped?
   * @return May return a promise if the view removal triggered an animation.
   */
-  removeMany(viewsToRemove: View[], returnToCache?: boolean, skipAnimation?: boolean): void | Promise<View> {
+  removeMany(viewsToRemove: View[], returnToCache?: boolean, skipAnimation?: boolean): void | Promise<void> {
     const children = this.children;
     let ii = viewsToRemove.length;
     let i;
@@ -339,7 +339,11 @@ export class ViewSlot {
 
       if (returnToCache) {
         for (i = 0; i < ii; ++i) {
-          children[i].returnToCache();
+          const child = children[i];
+
+          if (child) {
+            child.returnToCache();
+          }
         }
       }
 
@@ -451,6 +455,9 @@ export class ViewSlot {
     if (this.isAttached) {
       view.detached();
     }
+    if (returnToCache) {
+      view.returnToCache();
+    }
   }
 
   _projectionRemoveAt(index, returnToCache) {
@@ -462,6 +469,9 @@ export class ViewSlot {
     if (this.isAttached) {
       view.detached();
     }
+    if (returnToCache) {
+      view.returnToCache();
+    }
   }
 
   _projectionRemoveMany(viewsToRemove, returnToCache?) {
@@ -472,10 +482,15 @@ export class ViewSlot {
     ShadowDOM.undistributeAll(this.projectToSlots, this);
 
     let children = this.children;
+    let ii = children.length;
 
     if (this.isAttached) {
-      for (let i = 0, ii = children.length; i < ii; ++i) {
-        children[i].detached();
+      for (let i = 0; i < ii; ++i) {
+        if (returnToCache) {
+          children[i].returnToCache();
+        } else {
+          children[i].detached();
+        }
       }
     }
 

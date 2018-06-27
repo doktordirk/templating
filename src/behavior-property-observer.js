@@ -38,14 +38,18 @@ export class BehaviorPropertyObserver {
   setValue(newValue: any): void {
     let oldValue = this.currentValue;
 
-    if (oldValue !== newValue) {
-      if (this.publishing && this.notqueued) {
-        this.notqueued = false;
-        this.taskQueue.queueMicroTask(this);
-      }
-
+    if (!Object.is(newValue, oldValue)) {
       this.oldValue = oldValue;
       this.currentValue = newValue;
+
+      if (this.publishing && this.notqueued) {
+        if (this.taskQueue.flushing) {
+          this.call();
+        } else {
+          this.notqueued = false;
+          this.taskQueue.queueMicroTask(this);
+        }
+      }
     }
   }
 
@@ -58,7 +62,7 @@ export class BehaviorPropertyObserver {
 
     this.notqueued = true;
 
-    if (newValue === oldValue) {
+    if (Object.is(newValue, oldValue)) {
       return;
     }
 

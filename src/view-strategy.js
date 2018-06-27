@@ -1,9 +1,10 @@
-import {Origin, protocol} from 'aurelia-metadata';
-import {relativeToFile} from 'aurelia-path';
-import {TemplateRegistryEntry} from 'aurelia-loader';
-import {ViewEngine} from './view-engine';
-import {ResourceLoadContext, ViewCompileInstruction} from './instructions';
-import {DOM, PLATFORM} from 'aurelia-pal';
+import { TemplateRegistryEntry } from 'aurelia-loader';
+import { Origin, protocol } from 'aurelia-metadata';
+import { DOM, PLATFORM } from 'aurelia-pal';
+import { relativeToFile } from 'aurelia-path';
+import { ResourceLoadContext, ViewCompileInstruction } from './instructions';
+import { ViewEngine } from './view-engine';
+import { ViewResources } from './view-resources';
 
 /**
 * Implemented by classes that describe how a view factory should be loaded.
@@ -202,7 +203,7 @@ export class TemplateRegistryViewStrategy {
 }
 
 /**
-* A view strategy that allows the component authore to inline the html for the view.
+* A view strategy that allows the component author to inline the html for the view.
 */
 @viewStrategy()
 export class InlineViewStrategy {
@@ -251,5 +252,93 @@ export class InlineViewStrategy {
 
     compileInstruction.associatedModuleId = this.moduleId;
     return viewEngine.loadViewFactory(entry, compileInstruction, loadContext, target);
+  }
+}
+
+interface IStaticViewConfig {
+  template: string | HTMLTemplateElement;
+  dependencies?: Function[] | (() => Array<Function | Promise<Function | Record<string, Function>>>);
+}
+
+@viewStrategy()
+export class StaticViewStrategy {
+
+  /**@internal */
+  template: string | HTMLTemplateElement;
+  /**@internal */
+  dependencies: Function[] | (() => Array<Function | Promise<Function | Record<string, Function>>>);
+  factoryIsReady: boolean;
+  factory: ViewFactory;
+
+  constructor(config: string | HTMLTemplateElement | IStaticViewConfig) {
+    if (typeof config === 'string' || config instanceof HTMLTemplateElement) {
+      config = {
+        template: config
+      };
+    }
+    this.template = config.template;
+    this.dependencies = config.dependencies || [];
+    this.factoryIsReady = false;
+    this.onReady = null;
+  }
+
+  /**
+  * Loads a view factory.
+  * @param viewEngine The view engine to use during the load process.
+  * @param compileInstruction Additional instructions to use during compilation of the view.
+  * @param loadContext The loading context used for loading all resources and dependencies.
+  * @param target A class from which to extract metadata of additional resources to load.
+  * @return A promise for the view factory that is produced by this strategy.
+  */
+  loadViewFactory(viewEngine: ViewEngine, compileInstruction: ViewCompileInstruction, loadContext: ResourceLoadContext, target: any): Promise<ViewFactory> {
+    if (this.factoryIsReady) {
+      return Promise.resolve(this.factory);
+    }
+    let deps = this.dependencies;
+    deps = typeof deps === 'function' ? deps() : deps;
+    deps = deps ? deps : [];
+    deps = Array.isArray(deps) ? deps : [deps];
+    // Promise.all() to normalize dependencies into an array of either functions, or records that contain function
+    return Promise.all(deps).then((dependencies) => {
+      const container = viewEngine.container;
+      const appResources = viewEngine.appResources;
+      const viewCompiler = viewEngine.viewCompiler;
+      const viewResources = new ViewResources(appResources);
+
+      let resource;
+      let elDeps = [];
+
+      if (target) {
+        // when composing without a view mode, but view specified, target will be undefined
+        viewResources.autoRegister(container, target);
+      }
+
+      for (let dep of dependencies) {
+        if (typeof dep === 'function') {
+          // dependencies: [class1, class2, import('module').then(m => m.class3)]
+          resource = viewResources.autoRegister(container, dep);
+        } else if (dep && typeof dep === 'object') {
+          // dependencies: [import('module1'), import('module2')]
+          for (let key in dep) {
+            let exported = dep[key];
+            if (typeof exported === 'function') {
+              resource = viewResources.autoRegister(container, exported);
+            }
+          }
+        } else {
+          throw new Error(`dependency neither function nor object. Received: "${typeof dep}"`);
+        }
+        if (resource.elementName !== null) {
+          elDeps.push(resource);
+        }
+      }
+      // only load custom element as first step.
+      return Promise.all(elDeps.map(el => el.load(container, el.target))).then(() => {
+        const factory = viewCompiler.compile(this.template, viewResources, compileInstruction);
+        this.factoryIsReady = true;
+        this.factory = factory;
+        return factory;
+      });
+    });
   }
 }

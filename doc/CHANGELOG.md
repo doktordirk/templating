@@ -1,3 +1,171 @@
+<a name="1.8.0-rc.1"></a>
+# [1.8.0-rc.1](https://github.com/aurelia/templating/compare/1.7.0...1.8.0-rc.1) (2018-06-20)
+
+
+### Bug Fixes
+
+* **BehaviorPropertyObserver:** use Object.is() for comparison ([bf8ec9a](https://github.com/aurelia/templating/commit/bf8ec9a))
+* **child-observation:** unset property in unbind ([7989015](https://github.com/aurelia/templating/commit/7989015))
+* **ShadowDOM:** unbind view when remove ([b4abe6e](https://github.com/aurelia/templating/commit/b4abe6e))
+* **StaticViewStrategy:** adjust interface for doc ([65aef43](https://github.com/aurelia/templating/commit/65aef43))
+* **view-slot:** fix return type ([66a86de](https://github.com/aurelia/templating/commit/66a86de))
+
+
+### Features
+
+* **CompositionEngine:** compose accepts view model constructor ([524dee4](https://github.com/aurelia/templating/commit/524dee4))
+* **decorators:** add decorators for view / resource config ([2af6b28](https://github.com/aurelia/templating/commit/2af6b28))
+* **resource:** aurelialess aurelia ([e7da973](https://github.com/aurelia/templating/commit/e7da973))
+* **resources:** interop with custom element / attribute decorators ([e06668e](https://github.com/aurelia/templating/commit/e06668e))
+
+
+
+<a name="1.7.0"></a>
+# [1.7.0](https://github.com/aurelia/templating/compare/1.6.0...v1.7.0) (2017-12-20)
+
+
+### Bug Fixes
+
+* **view-compiler:** use attribute name ([5a2276c](https://github.com/aurelia/templating/commit/5a2276c)), closes [#575](https://github.com/aurelia/templating/issues/575)
+
+
+
+<a name="1.6.0"></a>
+# [1.6.0](https://github.com/aurelia/templating/compare/1.5.0...v1.6.0) (2017-10-16)
+
+
+### Bug Fixes
+
+* **view-engine:** define metadata for SlotCustomAttribute ([e3474bb](https://github.com/aurelia/templating/commit/e3474bb)), closes [#566](https://github.com/aurelia/templating/issues/566)
+* **view-engine:** singleton instance of auSlotBehavior ([c08db20](https://github.com/aurelia/templating/commit/c08db20))
+
+
+### Features
+
+* **html-behavior:** enable processContent via custom attributes ([7096e66](https://github.com/aurelia/templating/commit/7096e66))
+
+
+
+<a name="1.5.0"></a>
+# [1.5.0](https://github.com/aurelia/templating/compare/1.4.2...v1.5.0) (2017-10-02)
+
+
+### Bug Fixes
+
+* **primaryProperty:** infinite recursion when used with template controller ([5b5ed56](https://github.com/aurelia/templating/commit/5b5ed56))
+* **view-engine:** use .address in case of RegistryEntry ([ab1064c](https://github.com/aurelia/templating/commit/ab1064c))
+
+
+### Features
+
+* **html-behavior:** Allow inheritance of bindable properties for custom elements ([1209aa6](https://github.com/aurelia/templating/commit/1209aa6))
+
+
+### Performance Improvements
+
+* **view-engine:** simplify entry url acquisition ([f57cff9](https://github.com/aurelia/templating/commit/f57cff9))
+
+
+
+<a name="1.4.1"></a>
+## [1.4.1](https://github.com/aurelia/templating/compare/1.4.0...v1.4.1) (2017-04-05)
+
+* Documentation update.
+
+<a name="1.4.0"></a>
+# [1.4.0](https://github.com/aurelia/templating/compare/1.3.0...v1.4.0) (2017-03-25)
+
+
+### Bug Fixes
+
+* **aliases:** add missing filters and test ([5ac9981](https://github.com/aurelia/templating/commit/5ac9981))
+* **aliases:** filter aliases ([d00a7d0](https://github.com/aurelia/templating/commit/d00a7d0))
+* **aliases:** move to html-behavior ([b659b22](https://github.com/aurelia/templating/commit/b659b22))
+* **aliases:** place aliases on metadata ([24201fd](https://github.com/aurelia/templating/commit/24201fd))
+* **html-behavior:** remove extraneous filter ([4536135](https://github.com/aurelia/templating/commit/4536135))
+* **templating-engine:** enhanced views should attach ([5793d9c](https://github.com/aurelia/templating/commit/5793d9c))
+
+
+### Features
+
+* **alias:** process aliases for custom attributes ([7af0b42](https://github.com/aurelia/templating/commit/7af0b42))
+* **decorators:** customAttribute accepts aliases ([e03c929](https://github.com/aurelia/templating/commit/e03c929))
+
+
+
+<a name="1.3.0"></a>
+# [1.3.0](https://github.com/aurelia/templating/compare/1.2.0...v1.3.0) (2017-02-26)
+
+
+### Bug Fixes
+
+* **child-observation:** make property descriptor configurable ([7f07ffb](https://github.com/aurelia/templating/commit/7f07ffb)), closes [#520](https://github.com/aurelia/templating/issues/520)
+* **swap:** fix missing return result/controller statement ([e464663](https://github.com/aurelia/templating/commit/e464663))
+* **swap-strategies:** correct parameter name on with method ([bb6e09d](https://github.com/aurelia/templating/commit/bb6e09d))
+* **view-slot:** check for undefined child ([47a04a7](https://github.com/aurelia/templating/commit/47a04a7))
+* **view-slot:** eliminate double lookup ([8639ad5](https://github.com/aurelia/templating/commit/8639ad5))
+* **ViewCompiler:** use primary prop's default binding mode ([3a350e8](https://github.com/aurelia/templating/commit/3a350e8))
+
+
+### Features
+
+* **swapOrder:** add swaporder property for concurrent enter/leave transitions ([6a77043](https://github.com/aurelia/templating/commit/6a77043))
+
+
+
+<a name="1.2.0"></a>
+# [1.2.0](https://github.com/aurelia/templating/compare/1.1.4...v1.2.0) (2017-01-08)
+
+
+### Bug Fixes
+
+* Add return to hasAttribute and getAttribute ([1f8bb3a](https://github.com/aurelia/templating/commit/1f8bb3a))
+* **composition-engine:** add "host" to CompositionContext ([b9d927c](https://github.com/aurelia/templating/commit/b9d927c))
+
+
+### Features
+
+* **HtmlBehavior:** primary property/bindable ([dd5ddfa](https://github.com/aurelia/templating/commit/dd5ddfa)), closes [aurelia/templating-binding#56](https://github.com/aurelia/templating-binding/issues/56)
+
+### Performance
+
+* **view-factory:** Avoid creating anonymous function for each containerless anchor.
+
+<a name="1.1.4"></a>
+## [1.1.4](https://github.com/aurelia/templating/compare/1.1.3...v1.1.4) (2016-12-03)
+
+
+### Bug Fixes
+
+* **view-compiler:** account for undefined element instruction ([d1d1fe4](https://github.com/aurelia/templating/commit/d1d1fe4)), closes [#503](https://github.com/aurelia/templating/issues/503)
+
+
+
+<a name="1.1.3"></a>
+## [1.1.3](https://github.com/aurelia/templating/compare/1.1.2...v1.1.3) (2016-12-03)
+
+
+### Bug Fixes
+
+* **view-compiler:** proper anchoring for containerless elements inside of a template controller ([0f12514](https://github.com/aurelia/templating/commit/0f12514))
+
+
+### Performance Improvements
+
+* **view-compiler:** remove unnecessary assignment ([ddde119](https://github.com/aurelia/templating/commit/ddde119))
+
+
+
+<a name="1.1.1"></a>
+## [1.1.1](https://github.com/aurelia/templating/compare/1.1.0...v1.1.1) (2016-09-29)
+
+
+### Bug Fixes
+
+* **BehaviorPropertyObserver:** publish immediately when TaskQueue already flushing ([06be105](https://github.com/aurelia/templating/commit/06be105)), closes [aurelia/binding#496](https://github.com/aurelia/binding/issues/496) [aurelia/binding#479](https://github.com/aurelia/binding/issues/479) [#363](https://github.com/aurelia/templating/issues/363)
+
+
+
 <a name="1.1.0"></a>
 # [1.1.0](https://github.com/aurelia/templating/compare/1.0.1...v1.1.0) (2016-09-07)
 

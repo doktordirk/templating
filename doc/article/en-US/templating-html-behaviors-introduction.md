@@ -1,23 +1,13 @@
 ---
-{
-  "name": "Templating: HTML Behaviors Introduction",
-  "culture": "en-US",
-  "description": "An overview of the Aurelia templating engine's custom attribute and custom element functionality, including not only how to create basic versions, but how to use them both locally and globally in your application.",
-  "engines" : { "aurelia-doc" : "^1.0.0" },
-  "author": {
-  	"name": "Ashley Grant",
-  	"url": "http://www.ashleygrant.com"
-  },
-  "contributors": [],
-  "translators": [],
-  "keywords": ["JavaScript", "Templating", "Introduction", "HTML Behaviors", "Custom Elements", "Custom Attributes"]
-}
+name: "Templating: HTML Behaviors Introduction"
+description: An overview of the Aurelia templating engine's custom attribute and custom element functionality, including not only how to create basic versions, but how to use them both locally and globally in your application.
+author: Ashley Grant (http://www.ashleygrant.com)
 ---
-## [Introduction](aurelia-doc://section/1/version/1.0.0)
+## Introduction
 
 The term "HTML Behavior" in Aurelia encompasses two basic concepts: Custom Elements and Custom Attributes. HTML Behaviors are a fundamental part of nearly every Aurelia application. They help to create componentized applications with highly reusable code. In this introductory document, we will explore some basic topics to help you build an understanding of working with these concepts in an Aurelia application.
 
-## [What is an HTML Behavior?](aurelia-doc://section/2/version/1.0.0)
+## What is an HTML Behavior?
 
 HTML Behaviors are how you extend HTML with Custom Elements and Custom Attributes in an Aurelia application. Custom Elements are, as their name suggests, their own element in your markup. They generally have a view with some markup that will be rendered as part of a page in your application. Custom Attributes, on the other hand, can be used on standard HTML elements (such as `div` or `button`) or Custom Elements to change the behavior of the element. Both Custom Elements and Custom Attributes support Aurelia's strong data-binding.
 
@@ -45,7 +35,7 @@ As you see here, the custom attribute's name will be `red-square` even though th
 > Info: Naming Practices
 > It's generally recommended that custom elements and custom attributes be named so that the HTML behavior has a hyphen in the name. Use `hello-world` as apposed to `helloworld`. While nothing in Aurelia or the browser is going to stop you, in order to be forward compatible with Web Components, we recommend always using a hyphenated name. A common practice is to adopt a two-letter prefix and use it throughout your company or application.
 
-## [Getting the DOM Element for your Behavior ](aurelia-doc://section/3/version/1.0.0)
+## Getting the DOM Element for your Behavior
 
 When you are creating an HTML Behavior, there will be many instances where you will need to perform some manipulation of the DOM Element associated with your behavior. Initially, you might think, "No big deal! I'll just use `document.querySelector` or jQuery to get the DOM Element." But this would fall apart very quickly, as an HTML Behavior is likely to be used repeatedly on a page. How would you figure out exactly which element to query for? Well, luckily, Aurelia gives you an extremely easy way to get a reference to the element your Behavior is associated with: just have it injected in to your ViewModel.
 
@@ -95,7 +85,7 @@ Remember, you don't need jQuery to get the Element your HTML Behavior is attache
 > Warning: Try to Avoid Browser Globals
 > In the above examples, we used a browser global: `Element`. Sometimes using browser globals can cause testing issues. That's not the case here. However, should you desire to leverage server-side rendering, you'll need to have a codebase free of browser globals. You may want to prepare for this in advance. To help you avoid browser globals, Aurelia provides a Platform Abstraction Layer (PAL) that provides three exports `DOM`, `FEATURE` and `PLATFORM`. In the case above, you could substitute `Element` for `DOM.Element`.
 
-## [Making an HTML Behavior Available in a View](aurelia-doc://section/4/version/1.0.0)
+## Making an HTML Behavior Available in a View
 
 So far, we've merely talked about creating HTML Behaviors, but creating a behavior isn't very useful if you can't use it. So how do you use one? Well, first we have to make it available in a view. HTML Behaviors (and other view resources) are not available globally by default. This means that you must let Aurelia know which resources will be available in each view. This is done using the `require` element. The `require` element has two attributes `from` and `as`. You *must* supply a value for the `from` attribute, while `as` is optional. You cannot use data-binding with the `from` or `as` attributes on `require`.  When you "require in" a view resource with a `require` element, Aurelia will make it available for use in your view.
 
@@ -109,12 +99,12 @@ So far, we've merely talked about creating HTML Behaviors, but creating a behavi
   </source-code>
 </code-listing>
 
-The path you supply in the `from` attribute can take one of two forms: It can be relative to the root of your application or relative to the path of the view you are currently in. A path that does not have a `./` or `../` to start the path will be relative to the root of your application, while a path with `./ or `../` will be relative to your view's path. Note that you can use multiple `..`s to traverse up a directory tree as needed.
+The path you supply in the `from` attribute can take one of two forms: It can be relative to the root of your application or relative to the path of the view you are currently in. A path that does not have a `./` or `../` to start the path will be relative to the root of your application, while a path with `./` or `../` will be relative to your view's path. Note that you can use multiple `..`s to traverse up a directory tree as needed.
 
 <code-listing heading="Relative Paths for External Resources">
   <source-code lang="HTML">
     <template>
-      <require from="./my-custom-element"></require>
+      <require from="./my-custom-element-one"></require>
       <require from="../another-dir/my-custom-attribute"></require>
 
       <my-custom-element-one></my-custom-element-one>
@@ -137,7 +127,7 @@ The name the resource will take in your view is determined in one of three ways:
   </source-code>
 </code-listing>
 
-You will typically not provide a file extension to the `from` attribute. There are multiple reasons for this. First, the file extension for files in your development environment may be different from the file extension the browser runs (such as `.ts` files when using TypeScript). Second, most (but not all) custom elements will require Aurelia to pull in both a javascript ViewModel as well as an HTML View. Aurelia's loader will determine which file extension needs to be appended to the file name you provide. There is one exception to this rule, though. Aurelia provides for "HTML-only Custom Elements." You must tell Aurelia that you are utilizing an HTML-only custom element by providing the `.html` extension in the `from` attribute. This is common source of confusion for Aurelia developers, so it is important to remember this nuance to using the `require` element!
+You will typically not provide a file extension to the `from` attribute. There are multiple reasons for this. First, the file extension for files in your development environment may be different from the file extension the browser runs (such as `.ts` files when using TypeScript). Second, most (but not all) custom elements will require Aurelia to pull in both a javascript ViewModel as well as an HTML View. Aurelia's loader will determine which file extension needs to be appended to the file name you provide. There is one exception to this rule, though, Aurelia provides for "HTML-only Custom Elements." You must tell Aurelia that you are utilizing an HTML-only custom element by providing the `.html` extension in the `from` attribute. This is common source of confusion for Aurelia developers, so it is important to remember this nuance to using the `require` element!
 
 <code-listing heading="Sample Template With External Resources">
   <source-code lang="HTML">
@@ -154,7 +144,7 @@ You will typically not provide a file extension to the `from` attribute. There a
 > Info: The Inspiration for Require
 > Aurelia's `require` element was inspired by the `import` statement in ES 2015. In the same way that modern JavaScript has modules which contain imports, so Aurelia's views are also modularized and can contain imports, which we accomplish via `require`. You may wonder why we didn't just name our element `import` instead of `require`. Those who have been using Aurelia for a while may remember that the initial name was in fact 'import'. The name was changed in order to enable compatibility with older version of Internet Explorer, which didn't like the use of `import`.
 
-## [Global Resources](aurelia-doc://section/5/version/1.0.0)
+## Global Resources
 
 You are likely to have certain resources that you will use in multiple views while developing an Aurelia application. In these instances it might be wise to make these resources available globally in your application. Luckily, Aurelia provides you with this capability in a simple fashion. This is typically done at application startup in your `main.js` file (or whatever you call your application startup file). The `FrameworkConfiguration` class provides the `globalResources` which takes one or more strings that are paths to a resource as parameters. Globalized resources do not need to be required into a template.
 
@@ -187,7 +177,7 @@ The file you use to configure Aurelia will have a `configure` method. Aurelia wi
 
 Note that the same rules regarding file extensions (only include it for HTML-only custom elements) apply for the paths passed to `globalResources`.  You can globalize anything you would use the `require` element for, including Custom Elements, HTML-only Custom Elements, Custom Attributes, Value Converters and Binding Behaviors.
 
-## [Creating Bindable Properties on an HTML Behavior](aurelia-doc://section/6/version/1.0.0)
+## Creating Bindable Properties on an HTML Behavior
 
 As you likely know by now, one of Aurelia's key features is its strong data-bind system, and I'm sure you're itching to know how to create bindable properties on your HTML Behaviors. Well, you're in luck, as we're now ready to discuss the `@bindable` decorator. One last thing though: this section is a very basic introduction to creating bindable properties, and does not fully explore the topic. For a full explanation, we encourage you to check out the Custom Element and Custom Attribute documentation.
 
@@ -297,7 +287,77 @@ The `@bindable` decorator isn't used when doing single value binding with a Cust
 
 Aurelia will call the `valueChanged` callback whenever the bound value changes. This gives the attribute a chance to change the background color of the element. In this example, we don't even need to use the `value` property that Aurelia has set for us.
 
-## [HTML Only Custom Elements](aurelia-doc://section/7/version/1.0.0)
+## Inheritance with HTML Behaviors
+
+For developers who want to leverage inheritance, bindable properties can be inherited through the class hierarchy for custom elements only (not custom attributes).
+
+In the following example we create a generic icon button component, `icon-button`, that is integrated with [font awesome](http://fontawesome.io/).
+
+<code-listing heading="icon-button.js">
+  <source-code lang="ES 2015">
+    import {bindable} from 'aurelia-templating';
+
+    export class IconButton{
+      @bindable icon = 'ban';
+
+      onClick(){
+        alert("Default method");
+      }
+    }
+  </source-code>
+</code-listing>
+
+<code-listing heading="icon-button.html">
+  <source-code lang="HTML">
+    <template>
+      <button click.delegate="onClick">
+        <i class="fa fa-${icon}"></i>
+      </button>
+    </template>
+  </source-code>
+</code-listing>
+
+The next component extends the generic button, setting its default icon as well as a different `onClick` behavior.
+
+<code-listing heading="add-button.js">
+  <source-code lang="ES 2015">
+    import {useView, customElement} from 'aurelia-templating';
+    import {IconButton} from './icon-button';
+
+    @useView('./icon-button.html')
+    @customElement()
+    export class AddButton extends IconButton {
+      constructor(){
+        super();
+        this.icon = 'plus';
+        this.onClick = this.add;
+      }
+
+      add(){
+        alert('Base add button');
+      }
+    }
+  </source-code>
+</code-listing>
+
+First, notice that in the above example, we declared `@useView('./icon-button.html')` to use the same view as the base class. If we had not supplied this, the framework would look for `./add-button.html` instead. Second, notice that we explicitly declared `@customElement()`. *Any time you inherit a custom element, you must add the `customElement` decorator.* Here's how these components would be used in a view:
+
+<code-listing heading="view.html">
+  <source-code lang="HTML">
+    <template>
+      <require from="./icon-button"></require>
+      <require from="./add-button"></require>
+
+      <icon-button></icon-button>
+      <icon-button icon="cogs"></icon-button>
+
+      <add-button></add-button>
+      <add-button icon="plus-square-o"></add-button>
+    </template>
+  </source-code>
+</code-listing>
+
+## HTML-Only Custom Elements
 
 Earlier, we said that there is one exception to the rule that all HTML Behaviors must have a JavaScript class to act as a ViewModel, but we never explained just what that exception is. The exception is HTML Only Custom Elements. Aurelia provides you with the ability to create Custom Elements without needing to create a ViewModel class. This is great for those cases where you want to encapsulate something in to its own Custom Element, but whatever you are encapsulating isn't complex enough to need any complex logic and doesn't have any dependencies like data services.
 
@@ -321,7 +381,7 @@ Creating an HTML Only Custom Element is as simple as creating an HTML view file 
   </source-code>
 </code-listing>
 
-## [HTML Behavior Lifecycle](aurelia-doc://section/8/version/1.0.0)
+## HTML Behavior Lifecycle
 
 All HTML Behaviors have a well defined lifecycle. Using this lifecycle, you can tap in and trigger code to run when appropriate. Below is a listing of the standard lifecycle callbacks:
 
@@ -331,6 +391,9 @@ All HTML Behaviors have a well defined lifecycle. Using this lifecycle, you can 
 4. `attached()` - Next, the component is attached to the DOM (in document). If the view-model has an `attached` callback, it will be invoked at this time.
 5. `detached()` - At some point in the future, the component may be removed from the DOM. If/When this happens, and if the view-model has a `detached` callback, this is when it will be invoked.
 6. `unbind()` - After a component is detached, it's usually unbound. If your view-model has the `unbind` callback, it will be invoked during this process.
+
+> Info: Bind callback stops initial "Changed" callbacks
+> It should be noted that when the view-model has implemented the `bind` callback, the databinding framework will not invoke the changed handlers for the view-model's bindable properties until the "next" time those properties are updated. If you need to perform specific post-processing on your bindable properties, when implementing the `bind` callback, you should do so manually within the callback itself. For example, if you have a bindable property `foo`, implement the `fooChanged` callback, and you want `fooChanged` to be called on initial binding, then you will need to call it from within your `bind()` callback.
 
 Tapping into a lifecycle event is as simple as implementing any of the above methods on the behavior's view-model class. Here's an example of a custom attribute that uses the attached and detached callbacks, something common when wrapping jQuery plugins:
 
@@ -390,7 +453,7 @@ Tapping into a lifecycle event is as simple as implementing any of the above met
   </source-code>
 </code-listing>
 
-## [Conclusion](aurelia-doc://section/9/version/1.0.0)
+## Conclusion
 
 If you've made it this far, you should have the basics down of creating HTML Behaviors. HTML Behaviors in Aurelia can be a Custom Element or a Custom Attribute. Both of these have ViewModels, while only Custom Elements can have Views. There is no need to use jQuery or `document.querySelector` to get the DOM Element your behavior is associated with, as you can simply have Aurelia inject it in to your ViewModel. You must make sure that an HTML Behavior is accessible to the template you are using it in, either by using the `require` element or by making the behavior a global resource. When doing either of these, you do not provide a file extension in the path for the behavior, unless you are specifying an HTML Only Custom Element.
 

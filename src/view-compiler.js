@@ -11,35 +11,6 @@ function getNextInjectorId() {
   return ++nextInjectorId;
 }
 
-function configureProperties(instruction, resources) {
-  let type = instruction.type;
-  let attrName = instruction.attrName;
-  let attributes = instruction.attributes;
-  let property;
-  let key;
-  let value;
-
-  let knownAttribute = resources.mapAttribute(attrName);
-  if (knownAttribute && attrName in attributes && knownAttribute !== attrName) {
-    attributes[knownAttribute] = attributes[attrName];
-    delete attributes[attrName];
-  }
-
-  for (key in attributes) {
-    value = attributes[key];
-
-    if (value !== null && typeof value === 'object') {
-      property = type.attributes[key];
-
-      if (property !== undefined) {
-        value.targetProperty = property.name;
-      } else {
-        value.targetProperty = key;
-      }
-    }
-  }
-}
-
 let lastAUTargetID = 0;
 function getNextAUTargetID() {
   return (++lastAUTargetID).toString();
@@ -49,7 +20,7 @@ function makeIntoInstructionTarget(element) {
   let value = element.getAttribute('class');
   let auTargetID = getNextAUTargetID();
 
-  element.setAttribute('class', (value ? value += ' au-target' : 'au-target'));
+  element.setAttribute('class', (value ? value + ' au-target' : 'au-target'));
   element.setAttribute('au-target-id', auTargetID);
 
   return auTargetID;
@@ -132,7 +103,7 @@ export class ViewCompiler {
       if (targetId) {
         let ins = instructions[targetId];
 
-        if (ins.shadowSlot || ins.lifting) {
+        if (ins.shadowSlot || ins.lifting || (ins.elementInstruction && !ins.elementInstruction.anchorIsContainer)) {
           content.insertBefore(DOM.createComment('view'), firstChild);
         }
       }
@@ -229,6 +200,17 @@ export class ViewCompiler {
             if (!info.command && !info.expression) { // if there is no command or detected expression
               info.command = property.hasOptions ? 'options' : null; //and it is an optons property, set the options command
             }
+
+            // if the attribute itself is bound to a default attribute value then we have to
+            // associate the attribute value with the name of the default bindable property
+            // (otherwise it will remain associated with "value")
+            if (info.command && (info.command !== 'options') && type.primaryProperty) {
+              const primaryProperty = type.primaryProperty;
+              attrName = info.attrName = primaryProperty.attribute;
+              // note that the defaultBindingMode always overrides the attribute bindingMode which is only used for "single-value" custom attributes
+              // when using the syntax `<div square.bind="color"></div>`
+              info.defaultBindingMode = primaryProperty.defaultBindingMode;
+            }
           }
         }
       }
@@ -245,7 +227,7 @@ export class ViewCompiler {
         } else { //attribute bindings
           if (type) { //templator or attached behavior found
             instruction.type = type;
-            configureProperties(instruction, resources);
+            this._configureProperties(instruction, resources);
 
             if (type.liftsContent) { //template controller
               throw new Error('You cannot place a template controller on a surrogate element.');
@@ -311,6 +293,7 @@ export class ViewCompiler {
     let attr;
     let attrName;
     let attrValue;
+    let originalAttrName;
     let instruction;
     let info;
     let property;
@@ -324,6 +307,9 @@ export class ViewCompiler {
       }
       return node.nextSibling;
     } else if (tagName === 'template') {
+      if (!('content' in node)) {
+        throw new Error('You cannot place a template element within ' + node.namespaceURI + ' namespace');
+      }
       viewFactory = this.compile(node, resources);
       viewFactory.part = node.getAttribute('part');
     } else {
@@ -337,7 +323,7 @@ export class ViewCompiler {
 
     for (i = 0, ii = attributes.length; i < ii; ++i) {
       attr = attributes[i];
-      attrName = attr.name;
+      originalAttrName = attrName = attr.name;
       attrValue = attr.value;
       info = bindingLanguage.inspectAttribute(resources, tagName, attrName, attrValue);
 
@@ -358,6 +344,17 @@ export class ViewCompiler {
 
             if (!info.command && !info.expression) { // if there is no command or detected expression
               info.command = property.hasOptions ? 'options' : null; //and it is an optons property, set the options command
+            }
+
+            // if the attribute itself is bound to a default attribute value then we have to
+            // associate the attribute value with the name of the default bindable property
+            // (otherwise it will remain associated with "value")
+            if (info.command && (info.command !== 'options') && type.primaryProperty) {
+              const primaryProperty = type.primaryProperty;
+              attrName = info.attrName = primaryProperty.attribute;
+              // note that the defaultBindingMode always overrides the attribute bindingMode which is only used for "single-value" custom attributes
+              // when using the syntax `<div square.bind="color"></div>`
+              info.defaultBindingMode = primaryProperty.defaultBindingMode;
             }
           }
         }
@@ -384,10 +381,10 @@ export class ViewCompiler {
         } else { //attribute bindings
           if (type) { //templator or attached behavior found
             instruction.type = type;
-            configureProperties(instruction, resources);
+            this._configureProperties(instruction, resources);
 
             if (type.liftsContent) { //template controller
-              instruction.originalAttrName = attrName;
+              instruction.originalAttrName = originalAttrName;
               liftingInstruction = instruction;
               break;
             } else { //attached behavior
@@ -405,7 +402,7 @@ export class ViewCompiler {
           instruction.attributes[resources.mapAttribute(attrName)] = attrValue;
 
           if (type.liftsContent) { //template controller
-            instruction.originalAttrName = attrName;
+            instruction.originalAttrName = originalAttrName;
             liftingInstruction = instruction;
             break;
           } else { //attached behavior
@@ -425,6 +422,8 @@ export class ViewCompiler {
       auTargetID = makeIntoInstructionTarget(node);
       instructions[auTargetID] = TargetInstruction.lifting(parentInjectorId, liftingInstruction);
     } else {
+      let skipContentProcessing = false;
+
       if (expressions.length || behaviorInstructions.length) {
         injectorId = behaviorInstructions.length ? getNextInjectorId() : false;
 
@@ -432,6 +431,7 @@ export class ViewCompiler {
           instruction = behaviorInstructions[i];
           instruction.type.compile(this, resources, node, instruction, parentNode);
           providers.push(instruction.type.target);
+          skipContentProcessing = skipContentProcessing || instruction.skipContentProcessing;
         }
 
         for (i = 0, ii = expressions.length; i < ii; ++i) {
@@ -452,7 +452,7 @@ export class ViewCompiler {
         );
       }
 
-      if (elementInstruction && elementInstruction.skipContentProcessing) {
+      if (skipContentProcessing) {
         return node.nextSibling;
       }
 
@@ -463,5 +463,34 @@ export class ViewCompiler {
     }
 
     return node.nextSibling;
+  }
+
+  _configureProperties(instruction, resources) {
+    let type = instruction.type;
+    let attrName = instruction.attrName;
+    let attributes = instruction.attributes;
+    let property;
+    let key;
+    let value;
+
+    let knownAttribute = resources.mapAttribute(attrName);
+    if (knownAttribute && attrName in attributes && knownAttribute !== attrName) {
+      attributes[knownAttribute] = attributes[attrName];
+      delete attributes[attrName];
+    }
+
+    for (key in attributes) {
+      value = attributes[key];
+
+      if (value !== null && typeof value === 'object') {
+        property = type.attributes[key];
+
+        if (property !== undefined) {
+          value.targetProperty = property.name;
+        } else {
+          value.targetProperty = key;
+        }
+      }
+    }
   }
 }

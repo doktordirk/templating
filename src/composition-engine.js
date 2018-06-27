@@ -1,3 +1,4 @@
+import {SwapStrategies} from './swap-strategies';
 import {ViewLocator} from './view-locator';
 import {ViewEngine} from './view-engine';
 import {HtmlBehaviorResource} from './html-behavior';
@@ -6,7 +7,6 @@ import {CompositionTransaction} from './composition-transaction';
 import {DOM} from 'aurelia-pal';
 import {Container, inject} from 'aurelia-dependency-injection';
 import {metadata} from 'aurelia-metadata';
-
 /**
 * Instructs the composition engine how to dynamically compose a component.
 */
@@ -59,6 +59,11 @@ interface CompositionContext {
   * Should the composition system skip calling the "activate" hook on the view model.
   */
   skipActivation?: boolean;
+  /**
+  * The element that will parent the dynamic component.
+  * It will be registered in the child container of this composition.
+  */
+  host?: Element;
 }
 
 function tryActivateViewModel(context) {
@@ -83,31 +88,34 @@ export class CompositionEngine {
     this.viewLocator = viewLocator;
   }
 
-  _createControllerAndSwap(context) {
-    function swap(controller) {
-      return Promise.resolve(context.viewSlot.removeAll(true)).then(() => {
+  _swap(context, view) {
+    let swapStrategy = SwapStrategies[context.swapOrder] || SwapStrategies.after;
+    let previousViews = context.viewSlot.children.slice();
+
+    return swapStrategy(context.viewSlot, previousViews, () => {
+      return Promise.resolve(context.viewSlot.add(view)).then(() => {
         if (context.currentController) {
           context.currentController.unbind();
         }
-
-        context.viewSlot.add(controller.view);
-
-        if (context.compositionTransactionNotifier) {
-          context.compositionTransactionNotifier.done();
-        }
-
-        return controller;
       });
-    }
+    }).then(() => {
+      if (context.compositionTransactionNotifier) {
+        context.compositionTransactionNotifier.done();
+      }
+    });
+  }
 
+  _createControllerAndSwap(context) {
     return this.createController(context).then(controller => {
       controller.automate(context.overrideContext, context.owningView);
 
       if (context.compositionTransactionOwnershipToken) {
-        return context.compositionTransactionOwnershipToken.waitForCompositionComplete().then(() => swap(controller));
+        return context.compositionTransactionOwnershipToken.waitForCompositionComplete()
+          .then(() => this._swap(context, controller.view))
+          .then(() => controller);
       }
 
-      return swap(controller);
+      return this._swap(context, controller.view).then(() => controller);
     });
   }
 
@@ -120,22 +128,35 @@ export class CompositionEngine {
     let childContainer;
     let viewModel;
     let viewModelResource;
+    /**@type {HtmlBehaviorResource} */
     let m;
 
-    return this.ensureViewModel(context).then(tryActivateViewModel).then(() => {
-      childContainer = context.childContainer;
-      viewModel = context.viewModel;
-      viewModelResource = context.viewModelResource;
-      m = viewModelResource.metadata;
+    return this
+      .ensureViewModel(context)
+      .then(tryActivateViewModel)
+      .then(() => {
+        childContainer = context.childContainer;
+        viewModel = context.viewModel;
+        viewModelResource = context.viewModelResource;
+        m = viewModelResource.metadata;
 
-      let viewStrategy = this.viewLocator.getViewStrategy(context.view || viewModel);
+        let viewStrategy = this.viewLocator.getViewStrategy(context.view || viewModel);
 
-      if (context.viewResources) {
-        viewStrategy.makeRelativeTo(context.viewResources.viewUrl);
-      }
+        if (context.viewResources) {
+          viewStrategy.makeRelativeTo(context.viewResources.viewUrl);
+        }
 
-      return m.load(childContainer, viewModelResource.value, null, viewStrategy, true);
-    }).then(viewFactory => m.create(childContainer, BehaviorInstruction.dynamic(context.host, viewModel, viewFactory)));
+        return m.load(
+          childContainer,
+          viewModelResource.value,
+          null,
+          viewStrategy,
+          true
+        );
+      }).then(viewFactory => m.create(
+        childContainer,
+        BehaviorInstruction.dynamic(context.host, viewModel, viewFactory)
+      ));
   }
 
   /**
@@ -163,12 +184,26 @@ export class CompositionEngine {
         return context;
       });
     }
-
-    let m = metadata.getOrCreateOwn(metadata.resource, HtmlBehaviorResource, context.viewModel.constructor);
+    // When viewModel in context is not a module path
+    // only prepare the metadata and ensure the view model instance is ready
+    // if viewModel is a class, instantiate it
+    let isClass = typeof context.viewModel === 'function';
+    let ctor = isClass ? context.viewModel : context.viewModel.constructor;
+    let m = metadata.getOrCreateOwn(metadata.resource, HtmlBehaviorResource, ctor);
+    // We don't call ViewResources.prototype.convention here as it should be called later
+    // Just need to prepare the metadata for later usage
     m.elementName = m.elementName || 'dynamic-element';
-    m.initialize(context.container || childContainer, context.viewModel.constructor);
-    context.viewModelResource = { metadata: m, value: context.viewModel.constructor };
-    childContainer.viewModel = context.viewModel;
+    // HtmlBehaviorResource has its own guard to prevent unnecessary subsequent initialization calls
+    // so it's safe to call initialize this way
+    m.initialize(isClass ? childContainer : (context.container || childContainer), ctor);
+    // simulate the metadata of view model, like it was analyzed by module analyzer
+    // Cannot create a ResourceDescription instance here as it does too much
+    context.viewModelResource = { metadata: m, value: ctor };
+    // register the host element in case custom element view model declares it
+    if (context.host) {
+      childContainer.registerInstance(DOM.Element, context.host);
+    }
+    childContainer.viewModel = context.viewModel = isClass ? childContainer.get(ctor) : context.viewModel;
     return Promise.resolve(context);
   }
 
@@ -201,23 +236,13 @@ export class CompositionEngine {
         let result = viewFactory.create(context.childContainer);
         result.bind(context.bindingContext, context.overrideContext);
 
-        let work = () => {
-          return Promise.resolve(context.viewSlot.removeAll(true)).then(() => {
-            context.viewSlot.add(result);
-
-            if (context.compositionTransactionNotifier) {
-              context.compositionTransactionNotifier.done();
-            }
-
-            return result;
-          });
-        };
-
         if (context.compositionTransactionOwnershipToken) {
-          return context.compositionTransactionOwnershipToken.waitForCompositionComplete().then(work);
+          return context.compositionTransactionOwnershipToken.waitForCompositionComplete()
+            .then(() => this._swap(context, result))
+            .then(() => result);
         }
 
-        return work();
+        return this._swap(context, result).then(() => result);
       });
     } else if (context.viewSlot) {
       context.viewSlot.removeAll();

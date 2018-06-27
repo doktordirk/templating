@@ -1,7 +1,14 @@
-import {relativeToFile} from 'aurelia-path';
-import {HtmlBehaviorResource} from './html-behavior';
-import {BindingLanguage} from './binding-language';
-import {ViewCompileInstruction, ViewCreateInstruction} from './instructions';
+import { relativeToFile } from 'aurelia-path';
+import { metadata } from 'aurelia-metadata';
+import * as LogManager from 'aurelia-logging';
+import { BindableProperty } from './bindable-property';
+import { HtmlBehaviorResource } from './html-behavior';
+import { BindingLanguage } from './binding-language';
+import { ViewCompileInstruction, ViewCreateInstruction } from './instructions';
+import { Container } from 'aurelia-dependency-injection';
+import { _hyphenate } from './util';
+import { ValueConverterResource, BindingBehaviorResource, camelCase } from 'aurelia-binding';
+import { ViewEngineHooksResource } from './view-engine-hooks-resource';
 
 function register(lookup, name, resource, type) {
   if (!name) {
@@ -63,10 +70,237 @@ interface ViewEngineHooks {
   beforeUnbind?: (view: View) => void;
 }
 
+interface IBindablePropertyConfig {
+  /**
+  * The name of the property.
+  */
+  name?: string;
+  attribute?: string;
+  /**
+   * The default binding mode of the property. If given string, will use to lookup
+   */
+  defaultBindingMode?: bindingMode | 'oneTime' | 'oneWay' | 'twoWay' | 'fromView' | 'toView';
+  /**
+   * The name of a view model method to invoke when the property is updated.
+   */
+  changeHandler?: string;
+  /**
+   * A default value for the property.
+   */
+  defaultValue?: any;
+  /**
+   * Designates the property as the default bindable property among all the other bindable properties when used in a custom attribute with multiple bindable properties.
+   */
+  primaryProperty?: boolean;
+  // For compatibility and future extension
+  [key: string]: any;
+}
+
+interface IStaticResourceConfig {
+  /**
+   * Resource type of this class, omit equals to custom element
+   */
+  type?: 'element' | 'attribute' | 'valueConverter' | 'bindingBehavior' | 'viewEngineHooks';
+  /**
+   * Name of this resource. Reccommended to explicitly set to works better with minifier
+   */
+  name?: string;
+  /**
+   * Used to tell if a custom attribute is a template controller
+   */
+  templateController?: boolean;
+  /**
+   * Used to set default binding mode of default custom attribute view model "value" property
+   */
+  defaultBindingMode?: bindingMode | 'oneTime' | 'oneWay' | 'twoWay' | 'fromView' | 'toView';
+  /**
+   * Flags a custom attribute has dynamic options
+   */
+  hasDynamicOptions?: boolean;
+  /**
+   * Flag if this custom element uses native shadow dom instead of emulation
+   */
+  usesShadowDOM?: boolean;
+  /**
+   * Options that will be used if the element is flagged with usesShadowDOM
+   */
+  shadowDOMOptions?: ShadowRootInit;
+  /**
+   * Flag a custom element as containerless. Which will remove their render target
+   */
+  containerless?: boolean;
+  /**
+   * Custom processing of the attributes on an element before the framework inspects them.
+   */
+  processAttributes?: (viewCompiler: ViewCompiler, resources: ViewResources, node: Element, attributes: NamedNodeMap, elementInstruction: BehaviorInstruction) => void;
+  /**
+   * Enables custom processing of the content that is places inside the custom element by its consumer.
+   * Pass a boolean to direct the template compiler to not process
+   * the content placed inside this element. Alternatively, pass a function which
+   * can provide custom processing of the content. This function should then return
+   * a boolean indicating whether the compiler should also process the content.
+   */
+  processContent?: (viewCompiler: ViewCompiler, resources: ViewResources, node: Element, instruction: BehaviorInstruction) => boolean;
+  /**
+   * List of bindable properties of this custom element / custom attribute, by name or full config object
+   */
+  bindables?: (string | IBindablePropertyConfig)[];
+}
+
+export function validateBehaviorName(name: string, type: string) {
+  if (/[A-Z]/.test(name)) {
+    let newName = _hyphenate(name);
+    LogManager
+      .getLogger('templating')
+      .warn(`'${name}' is not a valid ${type} name and has been converted to '${newName}'. Upper-case letters are not allowed because the DOM is not case-sensitive.`);
+    return newName;
+  }
+  return name;
+}
+
+const conventionMark = '__au_resource__';
+
 /**
-* Represents a collection of resources used during the compilation of a view.
-*/
+ * Represents a collection of resources used during the compilation of a view.
+ * Will optinally add information to an existing HtmlBehaviorResource if given
+ */
 export class ViewResources {
+
+  /**
+   * Checks whether the provided class contains any resource conventions
+   * @param target Target class to extract metadata based on convention
+   * @param existing If supplied, all custom element / attribute metadata extracted from convention will be apply to this instance
+   */
+  static convention(target: Function, existing?: HtmlBehaviorResource): HtmlBehaviorResource | ValueConverterResource | BindingBehaviorResource | ViewEngineHooksResource {
+    let resource;
+    // Use a simple string to mark that an HtmlBehaviorResource instance
+    // has been applied all resource information from its target view model class
+    // to prevent subsequence call re initialization all info again
+    if (existing && conventionMark in existing) {
+      return existing;
+    }
+    if ('$resource' in target) {
+      let config = target.$resource;
+      // 1. check if resource config is a string
+      if (typeof config === 'string') {
+        // it's a custom element, with name is the resource variable
+        // static $resource = 'my-element'
+        resource = existing || new HtmlBehaviorResource();
+        resource[conventionMark] = true;
+        if (!resource.elementName) {
+          // if element name was not specified before
+          resource.elementName = validateBehaviorName(config, 'custom element');
+        }
+      } else {
+        // 2. if static config is not a string, normalize into an config object
+        if (typeof config === 'function') {
+          // static $resource() {  }
+          config = config.call(target);
+        }
+        if (typeof config === 'string') {
+          // static $resource() { return 'my-custom-element-name' }
+          // though rare case, still needs to handle properly
+          config = { name: config };
+        }
+        // after normalization, copy to another obj
+        // as the config could come from a static field, which subject to later reuse
+        // it shouldn't be modified
+        config = Object.assign({}, config);
+        // no type specified = custom element
+        let resourceType = config.type || 'element';
+        // cannot do name = config.name || target.name
+        // depends on resource type, it may need to use different strategies to normalize name
+        let name = config.name;
+        switch (resourceType) { // eslint-disable-line default-case
+        case 'element': case 'attribute':
+          // if a metadata is supplied, use it
+          resource = existing || new HtmlBehaviorResource();
+          resource[conventionMark] = true;
+          if (resourceType === 'element') {
+            // if element name was defined before applying convention here
+            // it's a result from `@customElement` call (or manual modification)
+            // need not to redefine name
+            // otherwise, fall into following if
+            if (!resource.elementName) {
+              resource.elementName = name
+                ? validateBehaviorName(name, 'custom element')
+                : _hyphenate(target.name);
+            }
+          } else {
+            // attribute name was defined before applying convention here
+            // it's a result from `@customAttribute` call (or manual modification)
+            // need not to redefine name
+            // otherwise, fall into following if
+            if (!resource.attributeName) {
+              resource.attributeName = name
+                ? validateBehaviorName(name, 'custom attribute')
+                : _hyphenate(target.name);
+            }
+          }
+          if ('templateController' in config) {
+            // map templateController to liftsContent
+            config.liftsContent = config.templateController;
+            delete config.templateController;
+          }
+          if ('defaultBindingMode' in config && resource.attributeDefaultBindingMode !== undefined) {
+            // map defaultBindingMode to attributeDefaultBinding mode
+            // custom element doesn't have default binding mode
+            config.attributeDefaultBindingMode = config.defaultBindingMode;
+            delete config.defaultBindingMode;
+          }
+          // not bringing over the name.
+          delete config.name;
+          // just copy over. Devs are responsible for what specified in the config
+          Object.assign(resource, config);
+          break;
+        case 'valueConverter':
+          resource = new ValueConverterResource(camelCase(name || target.name));
+          break;
+        case 'bindingBehavior':
+          resource = new BindingBehaviorResource(camelCase(name || target.name));
+          break;
+        case 'viewEngineHooks':
+          resource = new ViewEngineHooksResource();
+          break;
+        }
+      }
+
+      if (resource instanceof HtmlBehaviorResource) {
+        // check for bindable registration
+        // This will concat bindables specified in static field / method with bindables specified via decorators
+        // Which means if `name` is specified in both decorator and static config, it will be duplicated here
+        // though it will finally resolves to only 1 `name` attribute
+        // Will not break if it's done in that way but probably only happenned in inheritance scenarios.
+        let bindables = typeof config === 'string' ? undefined : config.bindables;
+        let currentProps = resource.properties;
+        if (Array.isArray(bindables)) {
+          for (let i = 0, ii = bindables.length; ii > i; ++i) {
+            let prop = bindables[i];
+            if (!prop || (typeof prop !== 'string' && !prop.name)) {
+              throw new Error(`Invalid bindable property at "${i}" for class "${target.name}". Expected either a string or an object with "name" property.`);
+            }
+            let newProp = new BindableProperty(prop);
+            // Bindable properties defined in $resource convention
+            // shouldn't override existing prop with the same name
+            // as they could be explicitly defined via decorator, thus more trust worthy ?
+            let existed = false;
+            for (let j = 0, jj = currentProps.length; jj > j; ++j) {
+              if (currentProps[j].name === newProp.name) {
+                existed = true;
+                break;
+              }
+            }
+            if (existed) {
+              continue;
+            }
+            newProp.registerWith(target, resource);
+          }
+        }
+      }
+    }
+    return resource;
+  }
+
   /**
   * A custom binding language used in the view.
   */
@@ -140,7 +374,7 @@ export class ViewResources {
   * Registers view engine hooks for the view.
   * @param hooks The hooks to register.
   */
-  registerViewEngineHooks(hooks:ViewEngineHooks): void {
+  registerViewEngineHooks(hooks: ViewEngineHooks): void {
     this._tryAddHook(hooks, 'beforeCompile');
     this._tryAddHook(hooks, 'afterCompile');
     this._tryAddHook(hooks, 'beforeCreate');
@@ -282,5 +516,50 @@ export class ViewResources {
   */
   getValue(name: string): any {
     return this.values[name] || (this.hasParent ? this.parent.getValue(name) : null);
+  }
+
+  /**
+   * @internal
+   * Not supported for public use. Can be changed without warning.
+   *
+   * Auto register a resources based on its metadata or convention
+   * Will fallback to custom element if no metadata found and all conventions fail
+   * @param {Container} container
+   * @param {Function} impl
+   * @returns {HtmlBehaviorResource | ValueConverterResource | BindingBehaviorResource | ViewEngineHooksResource}
+   */
+  autoRegister(container, impl) {
+    let resourceTypeMeta = metadata.getOwn(metadata.resource, impl);
+    if (resourceTypeMeta) {
+      if (resourceTypeMeta instanceof HtmlBehaviorResource) {
+        // first use static resource
+        ViewResources.convention(impl, resourceTypeMeta);
+
+        // then fallback to traditional convention
+        if (resourceTypeMeta.attributeName === null && resourceTypeMeta.elementName === null) {
+          //no customeElement or customAttribute but behavior added by other metadata
+          HtmlBehaviorResource.convention(impl.name, resourceTypeMeta);
+        }
+        if (resourceTypeMeta.attributeName === null && resourceTypeMeta.elementName === null) {
+          //no convention and no customeElement or customAttribute but behavior added by other metadata
+          resourceTypeMeta.elementName = _hyphenate(impl.name);
+        }
+      }
+    } else {
+      resourceTypeMeta = ViewResources.convention(impl)
+        || HtmlBehaviorResource.convention(impl.name)
+        || ValueConverterResource.convention(impl.name)
+        || BindingBehaviorResource.convention(impl.name)
+        || ViewEngineHooksResource.convention(impl.name);
+      if (!resourceTypeMeta) {
+        // doesn't match any convention, and is an exported value => custom element
+        resourceTypeMeta = new HtmlBehaviorResource();
+        resourceTypeMeta.elementName = _hyphenate(impl.name);
+      }
+      metadata.define(metadata.resource, resourceTypeMeta, impl);
+    }
+    resourceTypeMeta.initialize(container, impl);
+    resourceTypeMeta.register(this);
+    return resourceTypeMeta;
   }
 }

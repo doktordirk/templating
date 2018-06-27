@@ -16,6 +16,7 @@ function createChildObserverDecorator(selectorOrConfig, all) {
 
     if (descriptor) {
       descriptor.writable = true;
+      descriptor.configurable = true;
     }
 
     selectorOrConfig.all = all;
@@ -177,7 +178,9 @@ class ChildObserverBinder {
         if (!items) {
           items = viewModel[this.property] = [];
         } else {
-          items.length = 0;
+          // The existing array may alread be observed in other bindings
+          // Setting length to 0 will not work properly, unless we intercept it
+          items.splice(0);
         }
 
         while (current) {
@@ -237,6 +240,12 @@ class ChildObserverBinder {
 
       if (this.all) {
         let items = (this.viewModel[this.property] || (this.viewModel[this.property] = []));
+
+        if (this.selector === '*') {
+          items.push(value);
+          return true;
+        }
+
         let index = 0;
         let prev = element.previousElementSibling;
 
@@ -266,6 +275,7 @@ class ChildObserverBinder {
     if (this.viewHost.__childObserver__) {
       this.viewHost.__childObserver__.disconnect();
       this.viewHost.__childObserver__ = null;
+      this.viewModel[this.property] = null;
     }
   }
 }

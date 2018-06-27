@@ -1,4 +1,4 @@
-import {Origin} from 'aurelia-metadata';
+import {metadata, Origin} from 'aurelia-metadata';
 import {ObserverLocator, Binding} from 'aurelia-binding';
 import {TaskQueue} from 'aurelia-task-queue';
 import {Container} from 'aurelia-dependency-injection';
@@ -45,6 +45,7 @@ export class HtmlBehaviorResource {
     this.properties = [];
     this.attributes = {};
     this.isInitialized = false;
+    this.primaryProperty = null;
   }
 
   /**
@@ -132,6 +133,12 @@ export class HtmlBehaviorResource {
       } else { //custom attribute with options
         for (i = 0, ii = properties.length; i < ii; ++i) {
           properties[i].defineOn(target, this);
+          if (properties[i].primaryProperty) {
+            if (this.primaryProperty) {
+              throw new Error('Only one bindable property on a custom element can be defined as the default');
+            }
+            this.primaryProperty = properties[i];
+          }
         }
 
         current = new BindableProperty({
@@ -148,6 +155,10 @@ export class HtmlBehaviorResource {
       for (i = 0, ii = properties.length; i < ii; ++i) {
         properties[i].defineOn(target, this);
       }
+      // Because how inherited properties would interact with the default 'value' property
+      // in a custom attribute is not well defined yet, we only inherit properties on
+      // custom elements, where it's not a problem.
+      this._copyInheritedProperties(container, target);
     }
   }
 
@@ -161,6 +172,13 @@ export class HtmlBehaviorResource {
   register(registry: ViewResources, name?: string): void {
     if (this.attributeName !== null) {
       registry.registerAttribute(name || this.attributeName, this, this.attributeName);
+
+      if (Array.isArray(this.aliases)) {
+        this.aliases
+          .forEach( (alias) => {
+            registry.registerAttribute(alias, this, this.attributeName);
+          });
+      }
     }
 
     if (this.elementName !== null) {
@@ -270,6 +288,8 @@ export class HtmlBehaviorResource {
       } else {
         instruction.skipContentProcessing = true;
       }
+    } else if (!this.processContent(compiler, resources, node, instruction)) {
+      instruction.skipContentProcessing = true;
     }
 
     return node;
@@ -402,6 +422,39 @@ export class HtmlBehaviorResource {
       if (observer !== undefined) {
         lookup[observer.propertyName] = observer;
       }
+    }
+  }
+
+  _copyInheritedProperties(container: Container, target: Function) {
+    // This methods enables inherited @bindable properties.
+    // We look for the first base class with metadata, make sure it's initialized
+    // and copy its properties.
+    // We don't need to walk further than the first parent with metadata because
+    // it had also inherited properties during its own initialization.
+    let behavior;
+    let derived = target;
+
+    while (true) {
+      let proto = Object.getPrototypeOf(target.prototype);
+      target = proto && proto.constructor;
+      if (!target) {
+        return;
+      }
+      behavior = metadata.getOwn(metadata.resource, target);
+      if (behavior) {
+        break;
+      }
+    }
+    behavior.initialize(container, target);
+    for (let i = 0, ii = behavior.properties.length; i < ii; ++i) {
+      let prop = behavior.properties[i];
+      // Check that the property metadata was not overriden or re-defined in this class
+      if (this.properties.some(p => p.name === prop.name)) {
+        continue;
+      }
+      // We don't need to call .defineOn() for those properties because it was done
+      // on the parent prototype during initialization.
+      new BindableProperty(prop).registerWith(derived, this);
     }
   }
 }

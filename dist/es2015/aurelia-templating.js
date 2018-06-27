@@ -1,12 +1,12 @@
-var _class4, _temp, _dec, _class5, _dec2, _class6, _dec3, _class7, _dec4, _class8, _dec5, _class9, _class10, _temp2, _dec6, _class11, _class12, _temp3, _class15, _dec7, _class17, _dec8, _class18, _class19, _temp4, _dec9, _class21, _dec10, _class22, _dec11, _class23;
+var _class, _temp, _dec, _class2, _dec2, _class3, _dec3, _class4, _dec4, _class5, _dec5, _class6, _dec6, _class7, _class8, _temp2, _class9, _temp3, _class11, _dec7, _class13, _dec8, _class14, _class15, _temp4, _dec9, _class16, _dec10, _class17, _dec11, _class18;
 
 import * as LogManager from 'aurelia-logging';
 import { metadata, Origin, protocol } from 'aurelia-metadata';
 import { DOM, PLATFORM, FEATURE } from 'aurelia-pal';
-import { relativeToFile } from 'aurelia-path';
 import { TemplateRegistryEntry, Loader } from 'aurelia-loader';
-import { inject, Container, resolver } from 'aurelia-dependency-injection';
-import { Binding, createOverrideContext, ValueConverterResource, BindingBehaviorResource, subscriberCollection, bindingMode, ObserverLocator, EventManager } from 'aurelia-binding';
+import { relativeToFile } from 'aurelia-path';
+import { Container, resolver, inject } from 'aurelia-dependency-injection';
+import { ValueConverterResource, BindingBehaviorResource, camelCase, Binding, createOverrideContext, subscriberCollection, bindingMode, ObserverLocator, EventManager } from 'aurelia-binding';
 import { TaskQueue } from 'aurelia-task-queue';
 
 export const animationEvent = {
@@ -203,30 +203,19 @@ export let ElementEvents = class ElementEvents {
     this.element.dispatchEvent(event);
   }
 
-  subscribe(eventName, handler, bubbles = true) {
-    if (handler && typeof handler === 'function') {
-      handler.eventName = eventName;
-      handler.handler = handler;
-      handler.bubbles = bubbles;
-      handler.dispose = () => {
-        this.element.removeEventListener(eventName, handler, bubbles);
-        this._dequeueHandler(handler);
-      };
-      this.element.addEventListener(eventName, handler, bubbles);
-      this._enqueueHandler(handler);
-      return handler;
+  subscribe(eventName, handler, captureOrOptions = true) {
+    if (typeof handler === 'function') {
+      const eventHandler = new EventHandlerImpl(this, eventName, handler, captureOrOptions, false);
+      return eventHandler;
     }
 
     return undefined;
   }
 
-  subscribeOnce(eventName, handler, bubbles = true) {
-    if (handler && typeof handler === 'function') {
-      let _handler = event => {
-        handler(event);
-        _handler.dispose();
-      };
-      return this.subscribe(eventName, _handler, bubbles);
+  subscribeOnce(eventName, handler, captureOrOptions = true) {
+    if (typeof handler === 'function') {
+      const eventHandler = new EventHandlerImpl(this, eventName, handler, captureOrOptions, true);
+      return eventHandler;
     }
 
     return undefined;
@@ -252,6 +241,35 @@ export let ElementEvents = class ElementEvents {
     for (let key in this.subscriptions) {
       this.dispose(key);
     }
+  }
+};
+
+let EventHandlerImpl = class EventHandlerImpl {
+  constructor(owner, eventName, handler, captureOrOptions, once) {
+    this.owner = owner;
+    this.eventName = eventName;
+    this.handler = handler;
+
+    this.capture = typeof captureOrOptions === 'boolean' ? captureOrOptions : captureOrOptions.capture;
+    this.bubbles = !this.capture;
+    this.captureOrOptions = captureOrOptions;
+    this.once = once;
+    owner.element.addEventListener(eventName, this, captureOrOptions);
+    owner._enqueueHandler(this);
+  }
+
+  handleEvent(e) {
+    const fn = this.handler;
+    fn(e);
+    if (this.once) {
+      this.dispose();
+    }
+  }
+
+  dispose() {
+    this.owner.element.removeEventListener(this.eventName, this, this.captureOrOptions);
+    this.owner._dequeueHandler(this);
+    this.owner = this.handler = null;
   }
 };
 
@@ -339,7 +357,7 @@ export let BehaviorInstruction = class BehaviorInstruction {
 
 BehaviorInstruction.normal = new BehaviorInstruction();
 
-export let TargetInstruction = (_temp = _class4 = class TargetInstruction {
+export let TargetInstruction = (_temp = _class = class TargetInstruction {
   static shadowSlot(parentInjectorId) {
     let instruction = new TargetInstruction();
     instruction.parentInjectorId = parentInjectorId;
@@ -407,7 +425,7 @@ export let TargetInstruction = (_temp = _class4 = class TargetInstruction {
 
     this.values = null;
   }
-}, _class4.noExpressions = Object.freeze([]), _temp);
+}, _class.noExpressions = Object.freeze([]), _temp);
 
 export const viewStrategy = protocol.create('aurelia:view-strategy', {
   validate(target) {
@@ -424,7 +442,7 @@ export const viewStrategy = protocol.create('aurelia:view-strategy', {
   }
 });
 
-export let RelativeViewStrategy = (_dec = viewStrategy(), _dec(_class5 = class RelativeViewStrategy {
+export let RelativeViewStrategy = (_dec = viewStrategy(), _dec(_class2 = class RelativeViewStrategy {
   constructor(path) {
     this.path = path;
     this.absolutePath = null;
@@ -444,9 +462,9 @@ export let RelativeViewStrategy = (_dec = viewStrategy(), _dec(_class5 = class R
       this.absolutePath = relativeToFile(this.path, file);
     }
   }
-}) || _class5);
+}) || _class2);
 
-export let ConventionalViewStrategy = (_dec2 = viewStrategy(), _dec2(_class6 = class ConventionalViewStrategy {
+export let ConventionalViewStrategy = (_dec2 = viewStrategy(), _dec2(_class3 = class ConventionalViewStrategy {
   constructor(viewLocator, origin) {
     this.moduleId = origin.moduleId;
     this.viewUrl = viewLocator.convertOriginToViewUrl(origin);
@@ -456,9 +474,9 @@ export let ConventionalViewStrategy = (_dec2 = viewStrategy(), _dec2(_class6 = c
     compileInstruction.associatedModuleId = this.moduleId;
     return viewEngine.loadViewFactory(this.viewUrl, compileInstruction, loadContext, target);
   }
-}) || _class6);
+}) || _class3);
 
-export let NoViewStrategy = (_dec3 = viewStrategy(), _dec3(_class7 = class NoViewStrategy {
+export let NoViewStrategy = (_dec3 = viewStrategy(), _dec3(_class4 = class NoViewStrategy {
   constructor(dependencies, dependencyBaseUrl) {
     this.dependencies = dependencies || null;
     this.dependencyBaseUrl = dependencyBaseUrl || '';
@@ -493,9 +511,9 @@ export let NoViewStrategy = (_dec3 = viewStrategy(), _dec3(_class7 = class NoVie
 
     return viewEngine.loadViewFactory(entry, compileInstruction, loadContext, target);
   }
-}) || _class7);
+}) || _class4);
 
-export let TemplateRegistryViewStrategy = (_dec4 = viewStrategy(), _dec4(_class8 = class TemplateRegistryViewStrategy {
+export let TemplateRegistryViewStrategy = (_dec4 = viewStrategy(), _dec4(_class5 = class TemplateRegistryViewStrategy {
   constructor(moduleId, entry) {
     this.moduleId = moduleId;
     this.entry = entry;
@@ -511,9 +529,9 @@ export let TemplateRegistryViewStrategy = (_dec4 = viewStrategy(), _dec4(_class8
     compileInstruction.associatedModuleId = this.moduleId;
     return viewEngine.loadViewFactory(entry, compileInstruction, loadContext, target);
   }
-}) || _class8);
+}) || _class5);
 
-export let InlineViewStrategy = (_dec5 = viewStrategy(), _dec5(_class9 = class InlineViewStrategy {
+export let InlineViewStrategy = (_dec5 = viewStrategy(), _dec5(_class6 = class InlineViewStrategy {
   constructor(markup, dependencies, dependencyBaseUrl) {
     this.markup = markup;
     this.dependencies = dependencies || null;
@@ -546,9 +564,73 @@ export let InlineViewStrategy = (_dec5 = viewStrategy(), _dec5(_class9 = class I
     compileInstruction.associatedModuleId = this.moduleId;
     return viewEngine.loadViewFactory(entry, compileInstruction, loadContext, target);
   }
-}) || _class9);
+}) || _class6);
 
-export let ViewLocator = (_temp2 = _class10 = class ViewLocator {
+export let StaticViewStrategy = (_dec6 = viewStrategy(), _dec6(_class7 = class StaticViewStrategy {
+
+  constructor(config) {
+    if (typeof config === 'string' || config instanceof HTMLTemplateElement) {
+      config = {
+        template: config
+      };
+    }
+    this.template = config.template;
+    this.dependencies = config.dependencies || [];
+    this.factoryIsReady = false;
+    this.onReady = null;
+  }
+
+  loadViewFactory(viewEngine, compileInstruction, loadContext, target) {
+    if (this.factoryIsReady) {
+      return Promise.resolve(this.factory);
+    }
+    let deps = this.dependencies;
+    deps = typeof deps === 'function' ? deps() : deps;
+    deps = deps ? deps : [];
+    deps = Array.isArray(deps) ? deps : [deps];
+
+    return Promise.all(deps).then(dependencies => {
+      const container = viewEngine.container;
+      const appResources = viewEngine.appResources;
+      const viewCompiler = viewEngine.viewCompiler;
+      const viewResources = new ViewResources(appResources);
+
+      let resource;
+      let elDeps = [];
+
+      if (target) {
+        viewResources.autoRegister(container, target);
+      }
+
+      for (let dep of dependencies) {
+        if (typeof dep === 'function') {
+          resource = viewResources.autoRegister(container, dep);
+        } else if (dep && typeof dep === 'object') {
+          for (let key in dep) {
+            let exported = dep[key];
+            if (typeof exported === 'function') {
+              resource = viewResources.autoRegister(container, exported);
+            }
+          }
+        } else {
+          throw new Error(`dependency neither function nor object. Received: "${typeof dep}"`);
+        }
+        if (resource.elementName !== null) {
+          elDeps.push(resource);
+        }
+      }
+
+      return Promise.all(elDeps.map(el => el.load(container, el.target))).then(() => {
+        const factory = viewCompiler.compile(this.template, viewResources, compileInstruction);
+        this.factoryIsReady = true;
+        this.factory = factory;
+        return factory;
+      });
+    });
+  }
+}) || _class7);
+
+export let ViewLocator = (_temp2 = _class8 = class ViewLocator {
   getViewStrategy(value) {
     if (!value) {
       return null;
@@ -584,6 +666,19 @@ export let ViewLocator = (_temp2 = _class10 = class ViewLocator {
       value = value.constructor;
     }
 
+    if ('$view' in value) {
+      let c = value.$view;
+      let view;
+      c = typeof c === 'function' ? c.call(value) : c;
+      if (c === null) {
+        view = new NoViewStrategy();
+      } else {
+        view = c instanceof StaticViewStrategy ? c : new StaticViewStrategy(c);
+      }
+      metadata.define(ViewLocator.viewStrategyMetadataKey, view, value);
+      return view;
+    }
+
     let origin = Origin.get(value);
     let strategy = metadata.get(ViewLocator.viewStrategyMetadataKey, value);
 
@@ -609,10 +704,10 @@ export let ViewLocator = (_temp2 = _class10 = class ViewLocator {
     let id = moduleId.endsWith('.js') || moduleId.endsWith('.ts') ? moduleId.substring(0, moduleId.length - 3) : moduleId;
     return id + '.html';
   }
-}, _class10.viewStrategyMetadataKey = 'aurelia:view-strategy', _temp2);
+}, _class8.viewStrategyMetadataKey = 'aurelia:view-strategy', _temp2);
 
 function mi(name) {
-  throw new Error(`BindingLanguage must implement ${ name }().`);
+  throw new Error(`BindingLanguage must implement ${name}().`);
 }
 
 export let BindingLanguage = class BindingLanguage {
@@ -631,14 +726,18 @@ export let BindingLanguage = class BindingLanguage {
 
 let noNodes = Object.freeze([]);
 
-export let SlotCustomAttribute = (_dec6 = inject(DOM.Element), _dec6(_class11 = class SlotCustomAttribute {
+export let SlotCustomAttribute = class SlotCustomAttribute {
+  static inject() {
+    return [DOM.Element];
+  }
+
   constructor(element) {
     this.element = element;
     this.element.auSlotAttribute = this;
   }
 
   valueChanged(newValue, oldValue) {}
-}) || _class11);
+};
 
 export let PassThroughSlot = class PassThroughSlot {
   constructor(anchor, name, destinationName, fallbackFactory) {
@@ -951,7 +1050,7 @@ export let ShadowSlot = class ShadowSlot {
   }
 };
 
-export let ShadowDOM = (_temp3 = _class12 = class ShadowDOM {
+export let ShadowDOM = (_temp3 = _class9 = class ShadowDOM {
 
   static getSlotName(node) {
     if (node.auSlotAttribute === undefined) {
@@ -1032,7 +1131,7 @@ export let ShadowDOM = (_temp3 = _class12 = class ShadowDOM {
       }
     }
   }
-}, _class12.defaultSlotKey = '__au-default-slot-key__', _temp3);
+}, _class9.defaultSlotKey = '__au-default-slot-key__', _temp3);
 
 function register(lookup, name, resource, type) {
   if (!name) {
@@ -1042,7 +1141,7 @@ function register(lookup, name, resource, type) {
   let existing = lookup[name];
   if (existing) {
     if (existing !== resource) {
-      throw new Error(`Attempted to register ${ type } when one with the same name already exists. Name: ${ name }.`);
+      throw new Error(`Attempted to register ${type} when one with the same name already exists. Name: ${name}.`);
     }
 
     return;
@@ -1051,7 +1150,113 @@ function register(lookup, name, resource, type) {
   lookup[name] = resource;
 }
 
+export function validateBehaviorName(name, type) {
+  if (/[A-Z]/.test(name)) {
+    let newName = _hyphenate(name);
+    LogManager.getLogger('templating').warn(`'${name}' is not a valid ${type} name and has been converted to '${newName}'. Upper-case letters are not allowed because the DOM is not case-sensitive.`);
+    return newName;
+  }
+  return name;
+}
+
+const conventionMark = '__au_resource__';
+
 export let ViewResources = class ViewResources {
+  static convention(target, existing) {
+    let resource;
+
+    if (existing && conventionMark in existing) {
+      return existing;
+    }
+    if ('$resource' in target) {
+      let config = target.$resource;
+
+      if (typeof config === 'string') {
+        resource = existing || new HtmlBehaviorResource();
+        resource[conventionMark] = true;
+        if (!resource.elementName) {
+          resource.elementName = validateBehaviorName(config, 'custom element');
+        }
+      } else {
+        if (typeof config === 'function') {
+          config = config.call(target);
+        }
+        if (typeof config === 'string') {
+          config = { name: config };
+        }
+
+        config = Object.assign({}, config);
+
+        let resourceType = config.type || 'element';
+
+        let name = config.name;
+        switch (resourceType) {
+          case 'element':case 'attribute':
+            resource = existing || new HtmlBehaviorResource();
+            resource[conventionMark] = true;
+            if (resourceType === 'element') {
+              if (!resource.elementName) {
+                resource.elementName = name ? validateBehaviorName(name, 'custom element') : _hyphenate(target.name);
+              }
+            } else {
+              if (!resource.attributeName) {
+                resource.attributeName = name ? validateBehaviorName(name, 'custom attribute') : _hyphenate(target.name);
+              }
+            }
+            if ('templateController' in config) {
+              config.liftsContent = config.templateController;
+              delete config.templateController;
+            }
+            if ('defaultBindingMode' in config && resource.attributeDefaultBindingMode !== undefined) {
+              config.attributeDefaultBindingMode = config.defaultBindingMode;
+              delete config.defaultBindingMode;
+            }
+
+            delete config.name;
+
+            Object.assign(resource, config);
+            break;
+          case 'valueConverter':
+            resource = new ValueConverterResource(camelCase(name || target.name));
+            break;
+          case 'bindingBehavior':
+            resource = new BindingBehaviorResource(camelCase(name || target.name));
+            break;
+          case 'viewEngineHooks':
+            resource = new ViewEngineHooksResource();
+            break;
+        }
+      }
+
+      if (resource instanceof HtmlBehaviorResource) {
+        let bindables = typeof config === 'string' ? undefined : config.bindables;
+        let currentProps = resource.properties;
+        if (Array.isArray(bindables)) {
+          for (let i = 0, ii = bindables.length; ii > i; ++i) {
+            let prop = bindables[i];
+            if (!prop || typeof prop !== 'string' && !prop.name) {
+              throw new Error(`Invalid bindable property at "${i}" for class "${target.name}". Expected either a string or an object with "name" property.`);
+            }
+            let newProp = new BindableProperty(prop);
+
+            let existed = false;
+            for (let j = 0, jj = currentProps.length; jj > j; ++j) {
+              if (currentProps[j].name === newProp.name) {
+                existed = true;
+                break;
+              }
+            }
+            if (existed) {
+              continue;
+            }
+            newProp.registerWith(target, resource);
+          }
+        }
+      }
+    }
+    return resource;
+  }
+
   constructor(parent, viewUrl) {
     this.bindingLanguage = null;
 
@@ -1185,6 +1390,32 @@ export let ViewResources = class ViewResources {
 
   getValue(name) {
     return this.values[name] || (this.hasParent ? this.parent.getValue(name) : null);
+  }
+
+  autoRegister(container, impl) {
+    let resourceTypeMeta = metadata.getOwn(metadata.resource, impl);
+    if (resourceTypeMeta) {
+      if (resourceTypeMeta instanceof HtmlBehaviorResource) {
+        ViewResources.convention(impl, resourceTypeMeta);
+
+        if (resourceTypeMeta.attributeName === null && resourceTypeMeta.elementName === null) {
+          HtmlBehaviorResource.convention(impl.name, resourceTypeMeta);
+        }
+        if (resourceTypeMeta.attributeName === null && resourceTypeMeta.elementName === null) {
+          resourceTypeMeta.elementName = _hyphenate(impl.name);
+        }
+      }
+    } else {
+      resourceTypeMeta = ViewResources.convention(impl) || HtmlBehaviorResource.convention(impl.name) || ValueConverterResource.convention(impl.name) || BindingBehaviorResource.convention(impl.name) || ViewEngineHooksResource.convention(impl.name);
+      if (!resourceTypeMeta) {
+        resourceTypeMeta = new HtmlBehaviorResource();
+        resourceTypeMeta.elementName = _hyphenate(impl.name);
+      }
+      metadata.define(metadata.resource, resourceTypeMeta, impl);
+    }
+    resourceTypeMeta.initialize(container, impl);
+    resourceTypeMeta.register(this);
+    return resourceTypeMeta;
   }
 };
 
@@ -1670,7 +1901,11 @@ export let ViewSlot = class ViewSlot {
 
       if (returnToCache) {
         for (i = 0; i < ii; ++i) {
-          children[i].returnToCache();
+          const child = children[i];
+
+          if (child) {
+            child.returnToCache();
+          }
         }
       }
 
@@ -1776,6 +2011,9 @@ export let ViewSlot = class ViewSlot {
     if (this.isAttached) {
       view.detached();
     }
+    if (returnToCache) {
+      view.returnToCache();
+    }
   }
 
   _projectionRemoveAt(index, returnToCache) {
@@ -1787,6 +2025,9 @@ export let ViewSlot = class ViewSlot {
     if (this.isAttached) {
       view.detached();
     }
+    if (returnToCache) {
+      view.returnToCache();
+    }
   }
 
   _projectionRemoveMany(viewsToRemove, returnToCache) {
@@ -1797,10 +2038,15 @@ export let ViewSlot = class ViewSlot {
     ShadowDOM.undistributeAll(this.projectToSlots, this);
 
     let children = this.children;
+    let ii = children.length;
 
     if (this.isAttached) {
-      for (let i = 0, ii = children.length; i < ii; ++i) {
-        children[i].detached();
+      for (let i = 0; i < ii; ++i) {
+        if (returnToCache) {
+          children[i].returnToCache();
+        } else {
+          children[i].detached();
+        }
       }
     }
 
@@ -1808,12 +2054,12 @@ export let ViewSlot = class ViewSlot {
   }
 };
 
-let ProviderResolver = resolver(_class15 = class ProviderResolver {
+let ProviderResolver = resolver(_class11 = class ProviderResolver {
   get(container, key) {
     let id = key.__providerId__;
     return id in container ? container[id] : container[id] = container.invoke(key);
   }
-}) || _class15;
+}) || _class11;
 
 let providerResolverInstance = new ProviderResolver();
 
@@ -1891,6 +2137,18 @@ function createElementContainer(parent, element, instruction, children, partRepl
   return container;
 }
 
+function hasAttribute(name) {
+  return this._element.hasAttribute(name);
+}
+
+function getAttribute(name) {
+  return this._element.getAttribute(name);
+}
+
+function setAttribute(name, value) {
+  this._element.setAttribute(name, value);
+}
+
 function makeElementIntoAnchor(element, elementInstruction) {
   let anchor = DOM.createComment('anchor');
 
@@ -1901,15 +2159,11 @@ function makeElementIntoAnchor(element, elementInstruction) {
       anchor.contentElement = firstChild;
     }
 
-    anchor.hasAttribute = function (name) {
-      return element.hasAttribute(name);
-    };
-    anchor.getAttribute = function (name) {
-      return element.getAttribute(name);
-    };
-    anchor.setAttribute = function (name, value) {
-      element.setAttribute(name, value);
-    };
+    anchor._element = element;
+
+    anchor.hasAttribute = hasAttribute;
+    anchor.getAttribute = getAttribute;
+    anchor.setAttribute = setAttribute;
   }
 
   DOM.replaceNode(anchor, element);
@@ -2027,8 +2281,8 @@ function applySurrogateInstruction(container, element, instruction, controllers,
         element.setAttribute('style', styleObjectToString(styleObject));
       }
     } else {
-        element.setAttribute(key, values[key]);
-      }
+      element.setAttribute(key, values[key]);
+    }
   }
 
   if (behaviorInstructions.length) {
@@ -2190,35 +2444,6 @@ function getNextInjectorId() {
   return ++nextInjectorId;
 }
 
-function configureProperties(instruction, resources) {
-  let type = instruction.type;
-  let attrName = instruction.attrName;
-  let attributes = instruction.attributes;
-  let property;
-  let key;
-  let value;
-
-  let knownAttribute = resources.mapAttribute(attrName);
-  if (knownAttribute && attrName in attributes && knownAttribute !== attrName) {
-    attributes[knownAttribute] = attributes[attrName];
-    delete attributes[attrName];
-  }
-
-  for (key in attributes) {
-    value = attributes[key];
-
-    if (value !== null && typeof value === 'object') {
-      property = type.attributes[key];
-
-      if (property !== undefined) {
-        value.targetProperty = property.name;
-      } else {
-        value.targetProperty = key;
-      }
-    }
-  }
-}
-
 let lastAUTargetID = 0;
 function getNextAUTargetID() {
   return (++lastAUTargetID).toString();
@@ -2228,7 +2453,7 @@ function makeIntoInstructionTarget(element) {
   let value = element.getAttribute('class');
   let auTargetID = getNextAUTargetID();
 
-  element.setAttribute('class', value ? value += ' au-target' : 'au-target');
+  element.setAttribute('class', value ? value + ' au-target' : 'au-target');
   element.setAttribute('au-target-id', auTargetID);
 
   return auTargetID;
@@ -2260,7 +2485,7 @@ function makeShadowSlot(compiler, resources, node, instructions, parentInjectorI
   return auShadowSlot;
 }
 
-export let ViewCompiler = (_dec7 = inject(BindingLanguage, ViewResources), _dec7(_class17 = class ViewCompiler {
+export let ViewCompiler = (_dec7 = inject(BindingLanguage, ViewResources), _dec7(_class13 = class ViewCompiler {
   constructor(bindingLanguage, resources) {
     this.bindingLanguage = bindingLanguage;
     this.resources = resources;
@@ -2295,7 +2520,7 @@ export let ViewCompiler = (_dec7 = inject(BindingLanguage, ViewResources), _dec7
       if (targetId) {
         let ins = instructions[targetId];
 
-        if (ins.shadowSlot || ins.lifting) {
+        if (ins.shadowSlot || ins.lifting || ins.elementInstruction && !ins.elementInstruction.anchorIsContainer) {
           content.insertBefore(DOM.createComment('view'), firstChild);
         }
       }
@@ -2390,6 +2615,13 @@ export let ViewCompiler = (_dec7 = inject(BindingLanguage, ViewResources), _dec7
             if (!info.command && !info.expression) {
               info.command = property.hasOptions ? 'options' : null;
             }
+
+            if (info.command && info.command !== 'options' && type.primaryProperty) {
+              const primaryProperty = type.primaryProperty;
+              attrName = info.attrName = primaryProperty.attribute;
+
+              info.defaultBindingMode = primaryProperty.defaultBindingMode;
+            }
           }
         }
       }
@@ -2406,7 +2638,7 @@ export let ViewCompiler = (_dec7 = inject(BindingLanguage, ViewResources), _dec7
         } else {
           if (type) {
             instruction.type = type;
-            configureProperties(instruction, resources);
+            this._configureProperties(instruction, resources);
 
             if (type.liftsContent) {
               throw new Error('You cannot place a template controller on a surrogate element.');
@@ -2472,6 +2704,7 @@ export let ViewCompiler = (_dec7 = inject(BindingLanguage, ViewResources), _dec7
     let attr;
     let attrName;
     let attrValue;
+    let originalAttrName;
     let instruction;
     let info;
     let property;
@@ -2485,6 +2718,9 @@ export let ViewCompiler = (_dec7 = inject(BindingLanguage, ViewResources), _dec7
       }
       return node.nextSibling;
     } else if (tagName === 'template') {
+      if (!('content' in node)) {
+        throw new Error('You cannot place a template element within ' + node.namespaceURI + ' namespace');
+      }
       viewFactory = this.compile(node, resources);
       viewFactory.part = node.getAttribute('part');
     } else {
@@ -2498,7 +2734,7 @@ export let ViewCompiler = (_dec7 = inject(BindingLanguage, ViewResources), _dec7
 
     for (i = 0, ii = attributes.length; i < ii; ++i) {
       attr = attributes[i];
-      attrName = attr.name;
+      originalAttrName = attrName = attr.name;
       attrValue = attr.value;
       info = bindingLanguage.inspectAttribute(resources, tagName, attrName, attrValue);
 
@@ -2520,14 +2756,21 @@ export let ViewCompiler = (_dec7 = inject(BindingLanguage, ViewResources), _dec7
             if (!info.command && !info.expression) {
               info.command = property.hasOptions ? 'options' : null;
             }
+
+            if (info.command && info.command !== 'options' && type.primaryProperty) {
+              const primaryProperty = type.primaryProperty;
+              attrName = info.attrName = primaryProperty.attribute;
+
+              info.defaultBindingMode = primaryProperty.defaultBindingMode;
+            }
           }
         }
       } else if (elementInstruction) {
-          elementProperty = elementInstruction.type.attributes[info.attrName];
-          if (elementProperty) {
-            info.defaultBindingMode = elementProperty.defaultBindingMode;
-          }
+        elementProperty = elementInstruction.type.attributes[info.attrName];
+        if (elementProperty) {
+          info.defaultBindingMode = elementProperty.defaultBindingMode;
         }
+      }
 
       if (elementProperty) {
         instruction = bindingLanguage.createAttributeInstruction(resources, node, info, elementInstruction);
@@ -2545,10 +2788,10 @@ export let ViewCompiler = (_dec7 = inject(BindingLanguage, ViewResources), _dec7
         } else {
           if (type) {
             instruction.type = type;
-            configureProperties(instruction, resources);
+            this._configureProperties(instruction, resources);
 
             if (type.liftsContent) {
-              instruction.originalAttrName = attrName;
+              instruction.originalAttrName = originalAttrName;
               liftingInstruction = instruction;
               break;
             } else {
@@ -2566,7 +2809,7 @@ export let ViewCompiler = (_dec7 = inject(BindingLanguage, ViewResources), _dec7
           instruction.attributes[resources.mapAttribute(attrName)] = attrValue;
 
           if (type.liftsContent) {
-            instruction.originalAttrName = attrName;
+            instruction.originalAttrName = originalAttrName;
             liftingInstruction = instruction;
             break;
           } else {
@@ -2584,6 +2827,8 @@ export let ViewCompiler = (_dec7 = inject(BindingLanguage, ViewResources), _dec7
       auTargetID = makeIntoInstructionTarget(node);
       instructions[auTargetID] = TargetInstruction.lifting(parentInjectorId, liftingInstruction);
     } else {
+      let skipContentProcessing = false;
+
       if (expressions.length || behaviorInstructions.length) {
         injectorId = behaviorInstructions.length ? getNextInjectorId() : false;
 
@@ -2591,6 +2836,7 @@ export let ViewCompiler = (_dec7 = inject(BindingLanguage, ViewResources), _dec7
           instruction = behaviorInstructions[i];
           instruction.type.compile(this, resources, node, instruction, parentNode);
           providers.push(instruction.type.target);
+          skipContentProcessing = skipContentProcessing || instruction.skipContentProcessing;
         }
 
         for (i = 0, ii = expressions.length; i < ii; ++i) {
@@ -2604,7 +2850,7 @@ export let ViewCompiler = (_dec7 = inject(BindingLanguage, ViewResources), _dec7
         instructions[auTargetID] = TargetInstruction.normal(injectorId, parentInjectorId, providers, behaviorInstructions, expressions, elementInstruction);
       }
 
-      if (elementInstruction && elementInstruction.skipContentProcessing) {
+      if (skipContentProcessing) {
         return node.nextSibling;
       }
 
@@ -2616,7 +2862,36 @@ export let ViewCompiler = (_dec7 = inject(BindingLanguage, ViewResources), _dec7
 
     return node.nextSibling;
   }
-}) || _class17);
+
+  _configureProperties(instruction, resources) {
+    let type = instruction.type;
+    let attrName = instruction.attrName;
+    let attributes = instruction.attributes;
+    let property;
+    let key;
+    let value;
+
+    let knownAttribute = resources.mapAttribute(attrName);
+    if (knownAttribute && attrName in attributes && knownAttribute !== attrName) {
+      attributes[knownAttribute] = attributes[attrName];
+      delete attributes[attrName];
+    }
+
+    for (key in attributes) {
+      value = attributes[key];
+
+      if (value !== null && typeof value === 'object') {
+        property = type.attributes[key];
+
+        if (property !== undefined) {
+          value.targetProperty = property.name;
+        } else {
+          value.targetProperty = key;
+        }
+      }
+    }
+  }
+}) || _class13);
 
 export let ResourceModule = class ResourceModule {
   constructor(moduleId) {
@@ -2784,12 +3059,16 @@ export let ModuleAnalyzer = class ModuleAnalyzer {
       resourceTypeMeta = metadata.get(metadata.resource, exportedValue);
 
       if (resourceTypeMeta) {
-        if (resourceTypeMeta.attributeName === null && resourceTypeMeta.elementName === null) {
-          HtmlBehaviorResource.convention(key, resourceTypeMeta);
-        }
+        if (resourceTypeMeta instanceof HtmlBehaviorResource) {
+          ViewResources.convention(exportedValue, resourceTypeMeta);
 
-        if (resourceTypeMeta.attributeName === null && resourceTypeMeta.elementName === null) {
-          resourceTypeMeta.elementName = _hyphenate(key);
+          if (resourceTypeMeta.attributeName === null && resourceTypeMeta.elementName === null) {
+            HtmlBehaviorResource.convention(key, resourceTypeMeta);
+          }
+
+          if (resourceTypeMeta.attributeName === null && resourceTypeMeta.elementName === null) {
+            resourceTypeMeta.elementName = _hyphenate(key);
+          }
         }
 
         if (!mainResource && resourceTypeMeta instanceof HtmlBehaviorResource && resourceTypeMeta.elementName !== null) {
@@ -2802,7 +3081,14 @@ export let ModuleAnalyzer = class ModuleAnalyzer {
       } else if (exportedValue instanceof TemplateRegistryEntry) {
         vs = new TemplateRegistryViewStrategy(moduleId, exportedValue);
       } else {
-        if (conventional = HtmlBehaviorResource.convention(key)) {
+        if (conventional = ViewResources.convention(exportedValue)) {
+          if (conventional.elementName !== null && !mainResource) {
+            mainResource = new ResourceDescription(key, exportedValue, conventional);
+          } else {
+            resources.push(new ResourceDescription(key, exportedValue, conventional));
+          }
+          metadata.define(metadata.resource, conventional, exportedValue);
+        } else if (conventional = HtmlBehaviorResource.convention(key)) {
           if (conventional.elementName !== null && !mainResource) {
             mainResource = new ResourceDescription(key, exportedValue, conventional);
           } else {
@@ -2869,7 +3155,10 @@ let ProxyViewFactory = class ProxyViewFactory {
   }
 };
 
-export let ViewEngine = (_dec8 = inject(Loader, Container, ViewCompiler, ModuleAnalyzer, ViewResources), _dec8(_class18 = (_temp4 = _class19 = class ViewEngine {
+
+let auSlotBehavior = null;
+
+export let ViewEngine = (_dec8 = inject(Loader, Container, ViewCompiler, ModuleAnalyzer, ViewResources), _dec8(_class14 = (_temp4 = _class15 = class ViewEngine {
   constructor(loader, container, viewCompiler, moduleAnalyzer, appResources) {
     this.loader = loader;
     this.container = container;
@@ -2878,8 +3167,12 @@ export let ViewEngine = (_dec8 = inject(Loader, Container, ViewCompiler, ModuleA
     this.appResources = appResources;
     this._pluginMap = {};
 
-    let auSlotBehavior = new HtmlBehaviorResource();
-    auSlotBehavior.attributeName = 'au-slot';
+    if (auSlotBehavior === null) {
+      auSlotBehavior = new HtmlBehaviorResource();
+      auSlotBehavior.attributeName = 'au-slot';
+      metadata.define(metadata.resource, auSlotBehavior, SlotCustomAttribute);
+    }
+
     auSlotBehavior.initialize(container, SlotCustomAttribute);
     auSlotBehavior.register(appResources);
   }
@@ -2894,9 +3187,11 @@ export let ViewEngine = (_dec8 = inject(Loader, Container, ViewCompiler, ModuleA
     loadContext = loadContext || new ResourceLoadContext();
 
     return ensureRegistryEntry(this.loader, urlOrRegistryEntry).then(registryEntry => {
+      const url = registryEntry.address;
+
       if (registryEntry.onReady) {
-        if (!loadContext.hasDependency(urlOrRegistryEntry)) {
-          loadContext.addDependency(urlOrRegistryEntry);
+        if (!loadContext.hasDependency(url)) {
+          loadContext.addDependency(url);
           return registryEntry.onReady;
         }
 
@@ -2907,7 +3202,7 @@ export let ViewEngine = (_dec8 = inject(Loader, Container, ViewCompiler, ModuleA
         return Promise.resolve(new ProxyViewFactory(registryEntry.onReady));
       }
 
-      loadContext.addDependency(urlOrRegistryEntry);
+      loadContext.addDependency(url);
 
       registryEntry.onReady = this.loadTemplateResources(registryEntry, compileInstruction, loadContext, target).then(resources => {
         registryEntry.resources = resources;
@@ -2938,7 +3233,7 @@ export let ViewEngine = (_dec8 = inject(Loader, Container, ViewCompiler, ModuleA
 
     importIds = dependencies.map(x => x.src);
     names = dependencies.map(x => x.name);
-    logger.debug(`importing resources for ${ registryEntry.address }`, importIds);
+    logger.debug(`importing resources for ${registryEntry.address}`, importIds);
 
     if (target) {
       let viewModelRequires = metadata.get(ViewEngine.viewModelRequireMetadataKey, target);
@@ -2953,7 +3248,7 @@ export let ViewEngine = (_dec8 = inject(Loader, Container, ViewCompiler, ModuleA
             names.push(req.as);
           }
         }
-        logger.debug(`importing ViewModel resources for ${ compileInstruction.associatedModuleId }`, importIds.slice(templateImportCount));
+        logger.debug(`importing ViewModel resources for ${compileInstruction.associatedModuleId}`, importIds.slice(templateImportCount));
       }
     }
 
@@ -2966,7 +3261,7 @@ export let ViewEngine = (_dec8 = inject(Loader, Container, ViewCompiler, ModuleA
       let resourceModule = this.moduleAnalyzer.analyze(normalizedId, viewModelModule, moduleMember);
 
       if (!resourceModule.mainResource) {
-        throw new Error(`No view model found in module "${ moduleImport }".`);
+        throw new Error(`No view model found in module "${moduleImport}".`);
       }
 
       resourceModule.initialize(this.container);
@@ -3034,7 +3329,7 @@ export let ViewEngine = (_dec8 = inject(Loader, Container, ViewCompiler, ModuleA
 
     return id;
   }
-}, _class19.viewModelRequireMetadataKey = 'aurelia:view-model-require', _temp4)) || _class18);
+}, _class15.viewModelRequireMetadataKey = 'aurelia:view-model-require', _temp4)) || _class14);
 
 export let Controller = class Controller {
   constructor(behavior, instruction, viewModel, container) {
@@ -3127,11 +3422,11 @@ export let Controller = class Controller {
       if (this.viewModel === scope.overrideContext.bindingContext) {
         overrideContext = scope.overrideContext;
       } else if (this.instruction.inheritBindingContext) {
-          overrideContext = createOverrideContext(this.viewModel, scope.overrideContext);
-        } else {
-            overrideContext = createOverrideContext(this.viewModel);
-            overrideContext.__parentOverrideContext = scope.overrideContext;
-          }
+        overrideContext = createOverrideContext(this.viewModel, scope.overrideContext);
+      } else {
+        overrideContext = createOverrideContext(this.viewModel);
+        overrideContext.__parentOverrideContext = scope.overrideContext;
+      }
 
       this.view.bind(this.viewModel, overrideContext);
     } else if (skipSelfSubscriber) {
@@ -3203,7 +3498,7 @@ export let Controller = class Controller {
   }
 };
 
-export let BehaviorPropertyObserver = (_dec9 = subscriberCollection(), _dec9(_class21 = class BehaviorPropertyObserver {
+export let BehaviorPropertyObserver = (_dec9 = subscriberCollection(), _dec9(_class16 = class BehaviorPropertyObserver {
   constructor(taskQueue, obj, propertyName, selfSubscriber, initialValue) {
     this.taskQueue = taskQueue;
     this.obj = obj;
@@ -3221,14 +3516,18 @@ export let BehaviorPropertyObserver = (_dec9 = subscriberCollection(), _dec9(_cl
   setValue(newValue) {
     let oldValue = this.currentValue;
 
-    if (oldValue !== newValue) {
-      if (this.publishing && this.notqueued) {
-        this.notqueued = false;
-        this.taskQueue.queueMicroTask(this);
-      }
-
+    if (!Object.is(newValue, oldValue)) {
       this.oldValue = oldValue;
       this.currentValue = newValue;
+
+      if (this.publishing && this.notqueued) {
+        if (this.taskQueue.flushing) {
+          this.call();
+        } else {
+          this.notqueued = false;
+          this.taskQueue.queueMicroTask(this);
+        }
+      }
     }
   }
 
@@ -3238,7 +3537,7 @@ export let BehaviorPropertyObserver = (_dec9 = subscriberCollection(), _dec9(_cl
 
     this.notqueued = true;
 
-    if (newValue === oldValue) {
+    if (Object.is(newValue, oldValue)) {
       return;
     }
 
@@ -3257,12 +3556,14 @@ export let BehaviorPropertyObserver = (_dec9 = subscriberCollection(), _dec9(_cl
   unsubscribe(context, callable) {
     this.removeSubscriber(context, callable);
   }
-}) || _class21);
+}) || _class16);
 
-function getObserver(behavior, instance, name) {
+function getObserver(instance, name) {
   let lookup = instance.__observers__;
 
   if (lookup === undefined) {
+    let ctor = Object.getPrototypeOf(instance).constructor;
+    let behavior = metadata.get(metadata.resource, ctor);
     if (!behavior.isInitialized) {
       behavior.initialize(Container.instance || new Container(), instance.constructor);
     }
@@ -3283,8 +3584,11 @@ export let BindableProperty = class BindableProperty {
     }
 
     this.attribute = this.attribute || _hyphenate(this.name);
-    if (this.defaultBindingMode === null || this.defaultBindingMode === undefined) {
+    let defaultBindingMode = this.defaultBindingMode;
+    if (defaultBindingMode === null || defaultBindingMode === undefined) {
       this.defaultBindingMode = bindingMode.oneWay;
+    } else if (typeof defaultBindingMode === 'string') {
+      this.defaultBindingMode = bindingMode[defaultBindingMode] || bindingMode.oneWay;
     }
     this.changeHandler = this.changeHandler || null;
     this.owner = null;
@@ -3298,13 +3602,13 @@ export let BindableProperty = class BindableProperty {
 
     if (descriptor) {
       this.descriptor = descriptor;
-      return this._configureDescriptor(behavior, descriptor);
+      return this._configureDescriptor(descriptor);
     }
 
     return undefined;
   }
 
-  _configureDescriptor(behavior, descriptor) {
+  _configureDescriptor(descriptor) {
     let name = this.name;
 
     descriptor.configurable = true;
@@ -3323,15 +3627,15 @@ export let BindableProperty = class BindableProperty {
     }
 
     descriptor.get = function () {
-      return getObserver(behavior, this, name).getValue();
+      return getObserver(this, name).getValue();
     };
 
     descriptor.set = function (value) {
-      getObserver(behavior, this, name).setValue(value);
+      getObserver(this, name).setValue(value);
     };
 
     descriptor.get.getObserver = function (obj) {
-      return getObserver(behavior, obj, name);
+      return getObserver(obj, name);
     };
 
     return descriptor;
@@ -3376,7 +3680,7 @@ export let BindableProperty = class BindableProperty {
     } else if ('propertyChanged' in viewModel) {
       selfSubscriber = (newValue, oldValue) => viewModel.propertyChanged(name, newValue, oldValue);
     } else if (changeHandlerName !== null) {
-      throw new Error(`Change handler ${ changeHandlerName } was specified but not declared on the class.`);
+      throw new Error(`Change handler ${changeHandlerName} was specified but not declared on the class.`);
     }
 
     if (defaultValue !== undefined) {
@@ -3496,6 +3800,7 @@ export let HtmlBehaviorResource = class HtmlBehaviorResource {
     this.properties = [];
     this.attributes = {};
     this.isInitialized = false;
+    this.primaryProperty = null;
   }
 
   static convention(name, existing) {
@@ -3568,6 +3873,12 @@ export let HtmlBehaviorResource = class HtmlBehaviorResource {
       } else {
         for (i = 0, ii = properties.length; i < ii; ++i) {
           properties[i].defineOn(target, this);
+          if (properties[i].primaryProperty) {
+            if (this.primaryProperty) {
+              throw new Error('Only one bindable property on a custom element can be defined as the default');
+            }
+            this.primaryProperty = properties[i];
+          }
         }
 
         current = new BindableProperty({
@@ -3584,12 +3895,20 @@ export let HtmlBehaviorResource = class HtmlBehaviorResource {
       for (i = 0, ii = properties.length; i < ii; ++i) {
         properties[i].defineOn(target, this);
       }
+
+      this._copyInheritedProperties(container, target);
     }
   }
 
   register(registry, name) {
     if (this.attributeName !== null) {
       registry.registerAttribute(name || this.attributeName, this, this.attributeName);
+
+      if (Array.isArray(this.aliases)) {
+        this.aliases.forEach(alias => {
+          registry.registerAttribute(alias, this, this.attributeName);
+        });
+      }
     }
 
     if (this.elementName !== null) {
@@ -3680,6 +3999,8 @@ export let HtmlBehaviorResource = class HtmlBehaviorResource {
       } else {
         instruction.skipContentProcessing = true;
       }
+    } else if (!this.processContent(compiler, resources, node, instruction)) {
+      instruction.skipContentProcessing = true;
     }
 
     return node;
@@ -3801,6 +4122,33 @@ export let HtmlBehaviorResource = class HtmlBehaviorResource {
       }
     }
   }
+
+  _copyInheritedProperties(container, target) {
+    let behavior;
+    let derived = target;
+
+    while (true) {
+      let proto = Object.getPrototypeOf(target.prototype);
+      target = proto && proto.constructor;
+      if (!target) {
+        return;
+      }
+      behavior = metadata.getOwn(metadata.resource, target);
+      if (behavior) {
+        break;
+      }
+    }
+    behavior.initialize(container, target);
+    for (let i = 0, ii = behavior.properties.length; i < ii; ++i) {
+      let prop = behavior.properties[i];
+
+      if (this.properties.some(p => p.name === prop.name)) {
+        continue;
+      }
+
+      new BindableProperty(prop).registerWith(derived, this);
+    }
+  }
 };
 
 function createChildObserverDecorator(selectorOrConfig, all) {
@@ -3817,6 +4165,7 @@ function createChildObserverDecorator(selectorOrConfig, all) {
 
     if (descriptor) {
       descriptor.writable = true;
+      descriptor.configurable = true;
     }
 
     selectorOrConfig.all = all;
@@ -3973,7 +4322,7 @@ let ChildObserverBinder = class ChildObserverBinder {
         if (!items) {
           items = viewModel[this.property] = [];
         } else {
-          items.length = 0;
+          items.splice(0);
         }
 
         while (current) {
@@ -4033,6 +4382,12 @@ let ChildObserverBinder = class ChildObserverBinder {
 
       if (this.all) {
         let items = this.viewModel[this.property] || (this.viewModel[this.property] = []);
+
+        if (this.selector === '*') {
+          items.push(value);
+          return true;
+        }
+
         let index = 0;
         let prev = element.previousElementSibling;
 
@@ -4062,10 +4417,29 @@ let ChildObserverBinder = class ChildObserverBinder {
     if (this.viewHost.__childObserver__) {
       this.viewHost.__childObserver__.disconnect();
       this.viewHost.__childObserver__ = null;
+      this.viewModel[this.property] = null;
     }
   }
 };
 
+
+function remove(viewSlot, previous) {
+  return Array.isArray(previous) ? viewSlot.removeMany(previous, true) : viewSlot.remove(previous, true);
+}
+
+export const SwapStrategies = {
+  before(viewSlot, previous, callback) {
+    return previous === undefined ? callback() : callback().then(() => remove(viewSlot, previous));
+  },
+
+  with(viewSlot, previous, callback) {
+    return previous === undefined ? callback() : Promise.all([remove(viewSlot, previous), callback()]);
+  },
+
+  after(viewSlot, previous, callback) {
+    return Promise.resolve(viewSlot.removeAll(true)).then(callback);
+  }
+};
 
 function tryActivateViewModel(context) {
   if (context.skipActivation || typeof context.viewModel.activate !== 'function') {
@@ -4075,37 +4449,38 @@ function tryActivateViewModel(context) {
   return context.viewModel.activate(context.model) || Promise.resolve();
 }
 
-export let CompositionEngine = (_dec10 = inject(ViewEngine, ViewLocator), _dec10(_class22 = class CompositionEngine {
+export let CompositionEngine = (_dec10 = inject(ViewEngine, ViewLocator), _dec10(_class17 = class CompositionEngine {
   constructor(viewEngine, viewLocator) {
     this.viewEngine = viewEngine;
     this.viewLocator = viewLocator;
   }
 
-  _createControllerAndSwap(context) {
-    function swap(controller) {
-      return Promise.resolve(context.viewSlot.removeAll(true)).then(() => {
+  _swap(context, view) {
+    let swapStrategy = SwapStrategies[context.swapOrder] || SwapStrategies.after;
+    let previousViews = context.viewSlot.children.slice();
+
+    return swapStrategy(context.viewSlot, previousViews, () => {
+      return Promise.resolve(context.viewSlot.add(view)).then(() => {
         if (context.currentController) {
           context.currentController.unbind();
         }
-
-        context.viewSlot.add(controller.view);
-
-        if (context.compositionTransactionNotifier) {
-          context.compositionTransactionNotifier.done();
-        }
-
-        return controller;
       });
-    }
+    }).then(() => {
+      if (context.compositionTransactionNotifier) {
+        context.compositionTransactionNotifier.done();
+      }
+    });
+  }
 
+  _createControllerAndSwap(context) {
     return this.createController(context).then(controller => {
       controller.automate(context.overrideContext, context.owningView);
 
       if (context.compositionTransactionOwnershipToken) {
-        return context.compositionTransactionOwnershipToken.waitForCompositionComplete().then(() => swap(controller));
+        return context.compositionTransactionOwnershipToken.waitForCompositionComplete().then(() => this._swap(context, controller.view)).then(() => controller);
       }
 
-      return swap(controller);
+      return this._swap(context, controller.view).then(() => controller);
     });
   }
 
@@ -4113,6 +4488,7 @@ export let CompositionEngine = (_dec10 = inject(ViewEngine, ViewLocator), _dec10
     let childContainer;
     let viewModel;
     let viewModelResource;
+
     let m;
 
     return this.ensureViewModel(context).then(tryActivateViewModel).then(() => {
@@ -4150,11 +4526,20 @@ export let CompositionEngine = (_dec10 = inject(ViewEngine, ViewLocator), _dec10
       });
     }
 
-    let m = metadata.getOrCreateOwn(metadata.resource, HtmlBehaviorResource, context.viewModel.constructor);
+    let isClass = typeof context.viewModel === 'function';
+    let ctor = isClass ? context.viewModel : context.viewModel.constructor;
+    let m = metadata.getOrCreateOwn(metadata.resource, HtmlBehaviorResource, ctor);
+
     m.elementName = m.elementName || 'dynamic-element';
-    m.initialize(context.container || childContainer, context.viewModel.constructor);
-    context.viewModelResource = { metadata: m, value: context.viewModel.constructor };
-    childContainer.viewModel = context.viewModel;
+
+    m.initialize(isClass ? childContainer : context.container || childContainer, ctor);
+
+    context.viewModelResource = { metadata: m, value: ctor };
+
+    if (context.host) {
+      childContainer.registerInstance(DOM.Element, context.host);
+    }
+    childContainer.viewModel = context.viewModel = isClass ? childContainer.get(ctor) : context.viewModel;
     return Promise.resolve(context);
   }
 
@@ -4182,23 +4567,11 @@ export let CompositionEngine = (_dec10 = inject(ViewEngine, ViewLocator), _dec10
         let result = viewFactory.create(context.childContainer);
         result.bind(context.bindingContext, context.overrideContext);
 
-        let work = () => {
-          return Promise.resolve(context.viewSlot.removeAll(true)).then(() => {
-            context.viewSlot.add(result);
-
-            if (context.compositionTransactionNotifier) {
-              context.compositionTransactionNotifier.done();
-            }
-
-            return result;
-          });
-        };
-
         if (context.compositionTransactionOwnershipToken) {
-          return context.compositionTransactionOwnershipToken.waitForCompositionComplete().then(work);
+          return context.compositionTransactionOwnershipToken.waitForCompositionComplete().then(() => this._swap(context, result)).then(() => result);
         }
 
-        return work();
+        return this._swap(context, result).then(() => result);
       });
     } else if (context.viewSlot) {
       context.viewSlot.removeAll();
@@ -4212,7 +4585,7 @@ export let CompositionEngine = (_dec10 = inject(ViewEngine, ViewLocator), _dec10
 
     return Promise.resolve(null);
   }
-}) || _class22);
+}) || _class17);
 
 export let ElementConfigResource = class ElementConfigResource {
   initialize(container, target) {}
@@ -4226,18 +4599,14 @@ export let ElementConfigResource = class ElementConfigResource {
   }
 };
 
-function validateBehaviorName(name, type) {
-  if (/[A-Z]/.test(name)) {
-    let newName = _hyphenate(name);
-    LogManager.getLogger('templating').warn(`'${ name }' is not a valid ${ type } name and has been converted to '${ newName }'. Upper-case letters are not allowed because the DOM is not case-sensitive.`);
-    return newName;
-  }
-  return name;
-}
-
-export function resource(instance) {
+export function resource(instanceOrConfig) {
   return function (target) {
-    metadata.define(metadata.resource, instance, target);
+    let isConfig = typeof instanceOrConfig === 'string' || Object.getPrototypeOf(instanceOrConfig) === Object.prototype;
+    if (isConfig) {
+      target.$resource = instanceOrConfig;
+    } else {
+      metadata.define(metadata.resource, instanceOrConfig, target);
+    }
   };
 }
 
@@ -4259,11 +4628,12 @@ export function customElement(name) {
   };
 }
 
-export function customAttribute(name, defaultBindingMode) {
+export function customAttribute(name, defaultBindingMode, aliases) {
   return function (target) {
     let r = metadata.getOrCreateOwn(metadata.resource, HtmlBehaviorResource, target);
     r.attributeName = validateBehaviorName(name, 'custom attribute');
     r.attributeDefaultBindingMode = defaultBindingMode;
+    r.aliases = aliases;
   };
 }
 
@@ -4398,6 +4768,12 @@ export function noView(targetOrDependencies, dependencyBaseUrl) {
   return target ? deco(target) : deco;
 }
 
+export function view(templateOrConfig) {
+  return function (target) {
+    target.$view = templateOrConfig;
+  };
+}
+
 export function elementConfig(target) {
   let deco = function (t) {
     metadata.define(metadata.resource, new ElementConfigResource(), t);
@@ -4406,13 +4782,13 @@ export function elementConfig(target) {
   return target ? deco(target) : deco;
 }
 
-export function viewResources(...resource) {
+export function viewResources(...resources) {
   return function (target) {
     metadata.define(ViewEngine.viewModelRequireMetadataKey, resources, target);
   };
 }
 
-export let TemplatingEngine = (_dec11 = inject(Container, ModuleAnalyzer, ViewCompiler, CompositionEngine), _dec11(_class23 = class TemplatingEngine {
+export let TemplatingEngine = (_dec11 = inject(Container, ModuleAnalyzer, ViewCompiler, CompositionEngine), _dec11(_class18 = class TemplatingEngine {
   constructor(container, moduleAnalyzer, viewCompiler, compositionEngine) {
     this._container = container;
     this._moduleAnalyzer = moduleAnalyzer;
@@ -4446,6 +4822,10 @@ export let TemplatingEngine = (_dec11 = inject(Container, ModuleAnalyzer, ViewCo
 
     view.bind(instruction.bindingContext || {}, instruction.overrideContext);
 
+    view.firstChild = view.lastChild = view.fragment;
+    view.fragment = DOM.createDocumentFragment();
+    view.attached();
+
     return view;
   }
-}) || _class23);
+}) || _class18);
